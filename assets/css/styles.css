@@ -85,7 +85,7 @@ body.scale-cv{
   position: absolute;
   top: 2.2rem;
   left: 0;
-  font-size: 1.2rem;
+  font-size: 1.0rem;
   color: var(--text-color);
   cursor: pointer;
 }
@@ -105,7 +105,7 @@ body.scale-cv{
 }
 
 .scale-cv .section{
-  padding: 0.43rem 0 .80rem;
+  padding: 0.43rem 0.10rem;
 }
 
 .scale-cv .section-title{
@@ -215,7 +215,7 @@ img{
 
 /*========== CLASS CSS ==========*/
 .section{
-  padding: 1.5rem 0;
+  padding: 0.5rem 0;
 }
 
 .section-title{
@@ -238,7 +238,7 @@ img{
 
 .bd-grid{
   display: grid;
-  gap: 1.5rem;
+  gap: 0.7rem;
 }
 
 .l-header{
