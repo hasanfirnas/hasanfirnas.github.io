@@ -241,6 +241,11 @@ img{
   gap: 0.7rem;
 }
 
+.bd-grid_skill{
+  display: grid;
+  gap: 0rem;
+}
+
 .l-header{
   width: 100%;
   position: fixed;
