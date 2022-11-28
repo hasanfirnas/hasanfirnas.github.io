@@ -225,7 +225,7 @@ img{
   text-transform: uppercase;
   letter-spacing: .35rem;
   text-align: center;
-  margin-bottom: var(--mb-3);
+  margin-bottom: var(--mb-2);
 }
 
 /*========== LAYOUT ==========*/
@@ -503,9 +503,18 @@ img{
   margin-right: .75rem;
 }
 /*========== CERTIFICATES ==========*/
+.certificate__content{
+  line-height: 1.9;
+}
+
 .certificate__title{
   font-size: var(--h3-font-size);
   margin-bottom: var(--mb-1);
+}
+/*========== Achievements ==========*/
+.achievements__content{
+  margin-left: 16px;
+  line-height: 1.9;
 }
 
 /*========== What i do/did ==========*/
