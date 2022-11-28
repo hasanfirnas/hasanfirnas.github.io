@@ -241,6 +241,11 @@ img{
   gap: 0.7rem;
 }
 
+.bd-grid_interests{
+  display: grid;
+  gap: 10.1rem;
+}
+
 .bd-grid_skill{
   display: grid;
   gap: 0rem;
@@ -620,6 +625,6 @@ img{
 
   .interests__container{
     grid-template-columns: repeat(4, max-content);
-    column-gap: 3.5rem;
+    column-gap: 2.9rem;
   }
 }
