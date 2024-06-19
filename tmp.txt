@@ -8,8 +8,8 @@ df = pd.read_excel(excel_path)
 with open('numbers.txt') as f:
     numbers = set(map(int, f.readlines()))
 
-# Check each number in column 'A' and update column 'L'
-df['L'] = df.apply(lambda row: 'remove this' if row['A'] in numbers else row.get('L', ''), axis=1)
+# Check each number in column 'A' starting from the second row and update column 'L'
+df.loc[1:, 'L'] = df.loc[1:].apply(lambda row: 'remove this' if row['A'] in numbers else row.get('L', ''), axis=1)
 
 # Save the updated Excel file
 df.to_excel('updated_excel_file.xlsx', index=False)
