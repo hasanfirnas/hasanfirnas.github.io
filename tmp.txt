@@ -1,0 +1,15 @@
+import pandas as pd
+
+# Load the Excel file
+excel_path = 'your_excel_file.xlsx'
+df = pd.read_excel(excel_path)
+
+# Load the list of numbers
+with open('numbers.txt') as f:
+    numbers = set(map(int, f.readlines()))
+
+# Check each number in column 'A' and update column 'L'
+df['L'] = df.apply(lambda row: 'remove this' if row['A'] in numbers else row.get('L', ''), axis=1)
+
+# Save the updated Excel file
+df.to_excel('updated_excel_file.xlsx', index=False)
