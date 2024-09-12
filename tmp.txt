@@ -1,20 +1,14 @@
 import pandas as pd
-from openpyxl import load_workbook
 
-# Load the Excel file with openpyxl
-excel_path = 'your_excel_file.xlsx'
-workbook = load_workbook(excel_path)
-sheet = workbook.active
+# Load the Excel file
+file_path = 'your_excel_file.xlsx'
+sheet1 = pd.read_excel(file_path, sheet_name='1')
+sheet2 = pd.read_excel(file_path, sheet_name='2')
 
-# Load the list of numbers
-with open('numbers.txt') as f:
-    numbers = set(map(int, f.readlines()))
+# Perform the lookup (left join on column 'A')
+sheet1['L'] = sheet1['A'].map(sheet2.set_index('A')['J'])
 
-# Start from the second row (index 2 in Excel, which is 1 in zero-based indexing)
-for row in range(2, sheet.max_row + 1):
-    cell_value = sheet[f'A{row}'].value
-    if cell_value in numbers:
-        sheet[f'L{row}'] = 'remove this'
+# Save the result
+sheet1.to_excel('updated_excel_file.xlsx', index=False)
 
-# Save the workbook with changes
-workbook.save('updated_excel_file.xlsx')
+print("Lookup complete. Updated file saved.")
