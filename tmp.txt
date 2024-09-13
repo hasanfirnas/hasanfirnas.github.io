@@ -5,8 +5,15 @@ file_path = 'your_excel_file.xlsx'
 sheet1 = pd.read_excel(file_path, sheet_name='1')
 sheet2 = pd.read_excel(file_path, sheet_name='2')
 
-# Perform the lookup (left join on column 'A')
-sheet1['L'] = sheet1['A'].map(sheet2.set_index('A')['J'])
+# Group sheet2 by 'CI ID' and aggregate all 'J' column values into a single string
+# separated by commas or any other delimiter.
+sheet2_grouped = sheet2.groupby('CI ID')['J'].apply(lambda x: ', '.join(x.astype(str))).reset_index()
+
+# Merge the grouped data with sheet1 on 'CI ID'
+sheet1 = pd.merge(sheet1, sheet2_grouped, on='CI ID', how='left')
+
+# Rename the new 'J' column in sheet1 to 'L' to match your desired output
+sheet1.rename(columns={'J': 'L'}, inplace=True)
 
 # Save the result
 sheet1.to_excel('updated_excel_file.xlsx', index=False)
