@@ -16,3 +16,12 @@ Title: Why Your Application is in PCI Scope
 	•	Ensure your application is listed; if it is, proceed with the PCI onboarding requirements.
 	•	If Your Application is Not in Scope:
 	•	If you believe your application should not be in scope for this assessment, please contact Hasan for further clarification.
+
+
+
+•	Check Your Application’s PCI Status:
+	•	To determine whether your application is in PCI scope, refer to the [Excel File] that lists all applications currently flagged as PCI in scope (insert link).
+	•	This file contains a detailed list of applications that have met the scoping criteria mentioned above. Application teams should review the file to verify whether their application is included.
+	•	If your application is listed in this document, it means your application is subject to PCI assessment, and you must proceed with the onboarding and compliance requirements.
+	•	In case your application is not listed, but you believe it should be, or if you feel your application has been incorrectly flagged as PCI in scope, please reach out to Hasan for clarification or further steps.
+
