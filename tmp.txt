@@ -1,26 +1,12 @@
-import pandas as pd
-from openpyxl import load_workbook
-
-# Load the Excel file
-file_path = 'your_excel_file.xlsx'
-sheet1 = pd.read_excel(file_path, sheet_name='1')
-sheet2 = pd.read_excel(file_path, sheet_name='2')
-
-# Group sheet2 by 'CI ID' and aggregate all 'Name.1' column values into a single string
-sheet2_grouped = sheet2.groupby('CI ID')['Name.1'].apply(lambda x: ', '.join(x.astype(str))).reset_index()
-
-# Merge the grouped data with sheet1 on 'CI ID'
-sheet1_updated = pd.merge(sheet1, sheet2_grouped, on='CI ID', how='left')
-
-# Load the workbook and select the sheet you want to modify
-wb = load_workbook(file_path)
-ws = wb['1']
-
-# Update only the 'L' column with the merged data
-for idx, value in enumerate(sheet1_updated['Name.1'], start=2):  # start=2 because Excel is 1-indexed, and you want to skip header
-    ws[f'L{idx}'] = value
-
-# Save the workbook without altering any other formatting
-wb.save(file_path)
-
-print("Data added to existing file without changing formatting.")
+	•	Definition:
+	•	The Payment Card Industry Data Security Standard (PCI DSS) is a globally recognized set of security standards established by the PCI Security Standards Council (PCI SSC). It’s designed to ensure secure processing, storing, and transmission of cardholder data.
+	•	Why it Matters:
+	•	PCI DSS aims to protect sensitive cardholder data and reduce the risk of security breaches.
+	•	Compliance is mandatory for all entities involved in payment card processing, including merchants, service providers, and payment processors.
+	•	PCI DSS 4.0 Core Objectives:
+	1.	Secure Network & Systems: Protect networks and systems to maintain a secure environment.
+	2.	Protect Cardholder Data: Ensure that cardholder data is protected at rest and in transit.
+	3.	Maintain Vulnerability Management: Continuously identify and address security vulnerabilities.
+	4.	Implement Strong Access Controls: Restrict access to cardholder data on a need-to-know basis.
+	5.	Regular Monitoring & Testing: Monitor networks and test security systems for effectiveness.
+	6.	Maintain an Information Security Policy: Establish and enforce security policies to guide the protection of data.
