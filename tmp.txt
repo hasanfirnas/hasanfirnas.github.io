@@ -1,12 +1,18 @@
-	•	Definition:
-	•	The Payment Card Industry Data Security Standard (PCI DSS) is a globally recognized set of security standards established by the PCI Security Standards Council (PCI SSC). It’s designed to ensure secure processing, storing, and transmission of cardholder data.
-	•	Why it Matters:
-	•	PCI DSS aims to protect sensitive cardholder data and reduce the risk of security breaches.
-	•	Compliance is mandatory for all entities involved in payment card processing, including merchants, service providers, and payment processors.
-	•	PCI DSS 4.0 Core Objectives:
-	1.	Secure Network & Systems: Protect networks and systems to maintain a secure environment.
-	2.	Protect Cardholder Data: Ensure that cardholder data is protected at rest and in transit.
-	3.	Maintain Vulnerability Management: Continuously identify and address security vulnerabilities.
-	4.	Implement Strong Access Controls: Restrict access to cardholder data on a need-to-know basis.
-	5.	Regular Monitoring & Testing: Monitor networks and test security systems for effectiveness.
-	6.	Maintain an Information Security Policy: Establish and enforce security policies to guide the protection of data.
+
+Title: Why Your Application is in PCI Scope
+
+	•	How Applications are Flagged:
+	•	Applications are identified as PCI in scope within ServiceNow and CMDB.
+	•	A monthly report is pulled to identify any newly installed PCI applications.
+	•	Scoping Criteria:
+	•	To be in PCI scope, the following must apply:
+	1.	PCI status must be Yes.
+	2.	PCI Category should be 1 (in-scope for handling cardholder data).
+	3.	Host Type must be SaaS with one of the following internal hosting options:
+	•	ABC Dallas (Internally hosted)
+	•	ABC Dallas PCF
+	•	Check Your Application:
+	•	Verify if your application is in scope by reviewing the list in this [Excel File URL] (Insert URL to the file containing the list of in-scope applications).
+	•	Ensure your application is listed; if it is, proceed with the PCI onboarding requirements.
+	•	If Your Application is Not in Scope:
+	•	If you believe your application should not be in scope for this assessment, please contact Hasan for further clarification.
