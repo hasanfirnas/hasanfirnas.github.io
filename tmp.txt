@@ -1,2 +1,5 @@
+ Interim Evidence Submission Process
 	1.	Submit all evidence to the assigned SharePoint folder for manual tracking and validation.
 	2.	Once the PCI Portal is updated, you will be responsible for uploading the validated evidence to the portal.
+
+
