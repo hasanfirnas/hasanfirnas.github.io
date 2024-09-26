@@ -25,3 +25,4 @@ Title: Why Your Application is in PCI Scope
 	•	If your application is listed in this document, it means your application is subject to PCI assessment, and you must proceed with the onboarding and compliance requirements.
 	•	In case your application is not listed, but you believe it should be, or if you feel your application has been incorrectly flagged as PCI in scope, please reach out to Hasan for clarification or further steps.
 
+Answer the scoping question yourself. If the answer is Yes, your application is in scope. If No, please contact me for further clarification.
