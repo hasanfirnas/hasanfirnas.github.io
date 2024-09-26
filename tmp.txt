@@ -2,4 +2,22 @@
 	1.	Submit all evidence to the assigned SharePoint folder for manual tracking and validation.
 	2.	Once the PCI Portal is updated, you will be responsible for uploading the validated evidence to the portal.
 
+Slide 4: Submit the Following Evidence
+
+	1.	Data Flow Diagram (DFD):
+	•	Follow the gold standard template for documenting how cardholder data flows through the application.
+	•	[Insert link to the template]
+	2.	Database/Storage Details:
+	•	Provide information on whether the application stores PCI data.
+	•	If the application does store PCI data, include additional details about the storage system (e.g., type of database, location, etc.).
+	3.	Secure Audit Logging:
+	•	Submit evidence of how the application logs data.
+	•	Specifically, confirm if logs are sent directly to Splunk, or clarify if they are not integrated with Splunk.
+	4.	Encryption Details:
+	•	Provide details of database/storage encryption for data at rest.
+	•	Include evidence of encryption in transit, showing how cardholder data is protected during transmission.
+	5.	Key Custodian Information:
+	•	Identify individuals responsible for managing encryption keys.
+	6.	File Integrity Monitoring (FIM):
+	•	Submit evidence of file integrity monitoring, using tools like Tanium to prove monitoring is in place for critical application files.
 
