@@ -21,3 +21,11 @@ Slide 4: Submit the Following Evidence
 	6.	File Integrity Monitoring (FIM):
 	•	Submit evidence of file integrity monitoring, using tools like Tanium to prove monitoring is in place for critical application files.
 
+
+	1.	Cardholder Data Flow Diagram (DFD): Include a narrative explaining the flow of cardholder data.
+	2.	Locations of PAN (Primary Account Number): Identify where PAN is stored in the cardholder data repository.
+	3.	Compliance to Security Audit Logging Standard: Ensure logging to Splunk or equivalent monitoring is in place.
+	4.	Compliance to Encryption Standard: Provide evidence of encryption and key management practices.
+	5.	Identification of Key Custodians: List the individuals responsible for encryption keys.
+	6.	File Integrity Monitoring (FIM): Submit the template/instructions for building file integrity monitoring of critical application files.
+
