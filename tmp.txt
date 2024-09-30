@@ -6,3 +6,10 @@
 	•	All Data Flow Diagrams (DFDs) and other required evidence must be submitted and validated before the assessment starts.
 	•	Action Required:
 	•	Please ensure all evidence is collected, submitted to the SharePoint folder, and validated by our team prior to the deadline to avoid delays in the onboarding process.
+
+	•	Submission Deadline:
+	•	All Data Flow Diagrams (DFDs) and other required evidence must be submitted to the assigned SharePoint folder under your application name and validated before the assessment starts.
+	•	Action Required:
+	•	Ensure all evidence is submitted to the SharePoint folder and validated by the Internal Security Assessor (ISA) team prior to the deadline to avoid delays in the onboarding process.
+
+
