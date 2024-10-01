@@ -13,3 +13,7 @@
 	•	Ensure all evidence is submitted to the SharePoint folder and validated by the Internal Security Assessor (ISA) team prior to the deadline to avoid delays in the onboarding process.
 
 
+•	Once the PCI Portal is open for the next assessment, you will be responsible for uploading all validated evidence from the SharePoint folder to the PCI Portal.
+	•	Additionally, there will be supplementary questions in the PCI Portal that you will need to address as part of the assessment.
+
+
