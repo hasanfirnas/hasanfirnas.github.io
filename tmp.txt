@@ -19,4 +19,4 @@
 
 Note: These are the basic evidence items that need to be validated right now because your application is new and being onboarded into PCI. Once the PCI Portal is open, there will be additional questions to address, and further evidence will need to be uploaded into the portal.
 
-
+We have a reference document that shows how the PCI Portal looks and outlines the questions you’ll encounter—feel free to review it for reference, no action needed.
