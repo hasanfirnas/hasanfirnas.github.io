@@ -1,4 +1,16 @@
- These screenshots from the PCI Portal will help you understand the evidence requirements—use them for reference as needed
+Subject: PCI Onboarding – Action Required for Your Application
+
+Hi All,
+
+You are receiving this notification because you have been identified as the owner of a PCI application that is in scope for the upcoming PCI assessment. To help guide you through the process, please review the attached PPT, which outlines the onboarding steps, PCI requirements, and evidence submission guidelines.
+
+Action Required:
+
+	1.	Review the attached PPT to understand the PCI onboarding process and next steps.
+	2.	Submit the required evidence (e.g., Data Flow Diagram, encryption details) to your assigned SharePoint folder under your application name.
+	3.	Ensure all evidence is validated by the ISA team as part of the compliance process.
+
+If you have any questions or need clarification, feel free to reach out.
 
 
 
