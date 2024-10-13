@@ -1,14 +1,1 @@
-import shutil
-import os
-
-def copy_and_rename(src, names):
-    for name in names:
-        dest = f"{src}_{name}"
-        shutil.copytree(src, dest)  # Copy the whole folder structure including subfolders
-        print(f"Copied to: {dest}")
-
-# Usage
-src_folder = 'tmp'  # Source folder path
-name_list = ['Name1', 'Name2', 'Name3']  # List of new folder names
-
-copy_and_rename(src_folder, name_list)
+.
