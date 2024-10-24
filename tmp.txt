@@ -15,8 +15,14 @@ function main(workbook: ExcelScript.Workbook, searchString: string) {
     // Check if any cell in the row contains the search string
     let cells = row.getValues()[0];
     if (cells.some(cell => cell && cell.toString().includes(searchString))) {
-      // Highlight the entire row if string is found
+      // Highlight the entire row with yellow background
       row.getFormat().getFill().setColor("yellow");
+
+      // Apply strikethrough formatting to each cell in the row
+      let cellCount = row.getColumnCount();
+      for (let j = 0; j < cellCount; j++) {
+        row.getCell(0, j).getFormat().getFont().setStrikethrough(true);
+      }
     }
   }
 }
