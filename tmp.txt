@@ -1,1 +1,22 @@
-.
+function main(workbook: ExcelScript.Workbook, searchString: string) {
+  // Get the active worksheet
+  let sheet = workbook.getActiveWorksheet();
+  
+  // Get the used range of the worksheet
+  let range = sheet.getUsedRange();
+  
+  // Get the total number of rows in the used range
+  let rowCount = range.getRowCount();
+
+  // Loop through each row to find the string
+  for (let i = 0; i < rowCount; i++) {
+    let row = range.getRow(i);
+    
+    // Check if any cell in the row contains the search string
+    let cells = row.getValues()[0];
+    if (cells.some(cell => cell && cell.toString().includes(searchString))) {
+      // Highlight the entire row if string is found
+      row.getFormat().getFill().setColor("yellow");
+    }
+  }
+}
