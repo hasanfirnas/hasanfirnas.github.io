@@ -1,4 +1,5 @@
 import openpyxl
+import re
 
 def parse_excel_for_data(filename):
     workbook = openpyxl.load_workbook(filename)
@@ -9,7 +10,16 @@ def parse_excel_for_data(filename):
         ciid = row[1].value
         application_name = row[2].value
         ssoid_str = row[3].value
-        ssoid = ssoid_str.split()[0]
+
+        if ssoid_str:
+            match = re.search(r'\d{9}', ssoid_str)
+            if match:
+                ssoid = match.group()
+            else:
+                ssoid = []  # Empty list for invalid SSOID
+        else:
+            ssoid = []  # Empty list for empty SSOID
+
         data_list.append([ciid, application_name, ssoid])
 
     return data_list
