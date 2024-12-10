@@ -1,28 +1,21 @@
-function main(workbook: ExcelScript.Workbook, searchString: string) {
-  // Get the active worksheet
-  let sheet = workbook.getActiveWorksheet();
-  
-  // Get the used range of the worksheet
-  let range = sheet.getUsedRange();
-  
-  // Get the total number of rows in the used range
-  let rowCount = range.getRowCount();
+import openpyxl
 
-  // Loop through each row to find the string
-  for (let i = 0; i < rowCount; i++) {
-    let row = range.getRow(i);
-    
-    // Check if any cell in the row contains the search string
-    let cells = row.getValues()[0];
-    if (cells.some(cell => cell && cell.toString().includes(searchString))) {
-      // Highlight the entire row with yellow background
-      row.getFormat().getFill().setColor("yellow");
+def parse_excel_for_data(filename):
+    workbook = openpyxl.load_workbook(filename)
+    worksheet = workbook.active
 
-      // Apply strikethrough formatting to each cell in the row
-      let cellCount = row.getColumnCount();
-      for (let j = 0; j < cellCount; j++) {
-        row.getCell(0, j).getFormat().getFont().setStrikethrough(true);
-      }
-    }
-  }
-}
+    data_list = []
+    for row in worksheet.iter_rows(min_row=2):  # Skip the header row
+        ciid = row[1].value
+        application_name = row[2].value
+        ssoid_str = row[3].value
+        ssoid = ssoid_str.split()[0]
+        data_list.append([ciid, application_name, ssoid])
+
+    return data_list
+
+# Example usage:
+filename = "your_excel_file.xlsx"
+data_list = parse_excel_for_data(filename)
+
+print(data_list)
