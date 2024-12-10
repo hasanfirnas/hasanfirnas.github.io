@@ -1,36 +1,38 @@
-Below are the customized TRA templates for Requirement 8.6.3 and Requirement 11.3.1.1, using the original headings from the TRA file and adding sub-questions specific to each requirement. The goal is to ensure the information gathered allows the PCI team to provide precise and comprehensive answers.
+
 
 TRA Template for Requirement 8.6.3
 
-Requirement: Prevent unauthorized access to accounts by detecting and responding to suspicious login attempts.
+Requirement: Prevent unauthorized access to accounts by detecting and responding to suspicious login attempts and ensuring periodic password changes.
 
 1. Identify the Asset(s) being protected.
-	•	What systems or applications are covered by this requirement?
-	•	Are there high-risk accounts or privileged users associated with these assets?
-	•	Are these systems integrated with centralized authentication mechanisms (e.g., Active Directory, Okta)?
+	•	What systems or applications require protection from unauthorized login attempts?
+	•	Are there specific accounts (e.g., privileged or high-risk accounts) that mandate stricter controls?
+	•	Do these accounts require periodic password changes? If yes, at what interval?
 
 2. Identify the threat(s) that the requirement is protecting against.
-	•	What are the potential unauthorized login methods or attack vectors (e.g., brute force, phishing, session hijacking)?
-	•	Have these threats been observed in the environment in the past?
-	•	Are there known threat actors or external entities that target similar systems?
+	•	What are the potential threats related to unauthorized logins (e.g., brute force, phishing, credential stuffing)?
+	•	How could weak or unchanged passwords contribute to unauthorized access risks?
+	•	Are there any threats specific to accounts that do not enforce periodic password changes?
 
 3. Identify the factor(s) that contribute to the likelihood and/or impact of the threat being realized.
-	•	Are there specific times or conditions (e.g., after a breach elsewhere) when login attempts increase?
-	•	How robust are the implemented monitoring systems for detecting anomalies (e.g., failed login attempts)?
-	•	What would be the operational or financial impact if an unauthorized login attempt succeeded?
+	•	How often are passwords changed for system and user accounts?
+	•	What factors could increase the likelihood of password-related vulnerabilities being exploited?
+	•	If passwords are not changed periodically, what is the potential impact on account security?
 
 4. Describe the analysis of and justification for how frequently the requirement must be performed to minimize the likelihood of the threat being realized.
-	•	How often are login logs reviewed for anomalies or suspicious activity?
-	•	What is the process for analyzing and validating flagged login attempts as potential threats?
-	•	Is the detection system configured to provide real-time alerts for suspicious behavior?
+	•	How frequently are password policies reviewed and updated for compliance with PCI DSS?
+	•	How often are passwords for privileged accounts required to be changed?
+	•	What mechanisms are in place to ensure password changes are enforced and tracked (e.g., automated prompts, expiration policies)?
 
 5. Is an updated analysis needed, based on an annual review?
-	•	How frequently is the effectiveness of the suspicious login monitoring mechanism reviewed?
-	•	Are the latest threat patterns and attack methods incorporated into the analysis?
+	•	Are periodic password changes evaluated as part of the annual review of password management policies?
+	•	Does the annual review consider emerging threats or advancements in attack methods (e.g., password cracking tools)?
 
 6. Are there defined and documented policies and procedures for performing the entity’s targeted risk analyses (TRA) consistently?
-	•	Are policies and procedures available for monitoring, detecting, and responding to suspicious logins?
-	•	Is training provided to administrators and end-users on secure login practices and monitoring alerts?
+	•	Are password change policies and procedures documented and enforced across all in-scope systems?
+	•	How are exceptions (e.g., service accounts with non-expiring passwords) identified and approved?
+	•	Are users educated on the importance of strong passwords and periodic changes?
+
 
 TRA Template for Requirement 11.3.1.1
 
@@ -39,29 +41,28 @@ Requirement: Perform external and internal vulnerability scans at least quarterl
 1. Identify the Asset(s) being protected.
 	•	What external and internal systems are included in the scope for vulnerability scans?
 	•	Are any systems excluded from scanning? If so, what is the rationale?
-	•	Are scanning tools configured to cover the full scope of in-scope assets?
+	•	Are scanning tools configured to cover all in-scope assets comprehensively?
 
 2. Identify the threat(s) that the requirement is protecting against.
-	•	What types of vulnerabilities are most commonly targeted in the industry or your environment?
-	•	Are there past instances where unpatched vulnerabilities led to security incidents?
-	•	How do emerging threats, such as zero-day vulnerabilities, factor into the threat landscape?
+	•	What types of vulnerabilities (medium, low) are most commonly identified during scans?
+	•	How could medium or low vulnerabilities contribute to potential exploitation scenarios?
+	•	Are there any patterns observed in recurring medium or low vulnerabilities within the environment?
 
 3. Identify the factor(s) that contribute to the likelihood and/or impact of the threat being realized.
-	•	How frequently are high or critical vulnerabilities discovered during scans?
-	•	What would be the impact if a critical vulnerability were exploited before remediation?
-	•	Are there any external factors (e.g., regulatory scrutiny) that increase the impact of vulnerabilities?
+	•	How often do medium and low vulnerabilities occur during routine scans?
+	•	Are there any specific systems or applications where medium or low vulnerabilities persist longer than expected?
+	•	What could be the operational impact of unremediated medium or low vulnerabilities being exploited over time?
 
 4. Describe the analysis of and justification for how frequently the requirement must be performed to minimize the likelihood of the threat being realized.
-	•	What is the frequency of routine vulnerability scans, and is it aligned with your risk exposure?
-	•	How quickly are scans performed after significant changes (e.g., system upgrades, new integrations)?
-	•	Are there additional manual or automated checks conducted between quarterly scans?
+	•	What is the current frequency of scans for detecting medium and low vulnerabilities, and is this frequency sufficient?
+	•	How promptly are medium and low vulnerabilities remediated after detection?
+	•	How does the organization ensure medium and low vulnerabilities are addressed without delay, especially after significant changes?
 
 5. Is an updated analysis needed, based on an annual review?
-	•	Is the frequency of vulnerability scans adjusted based on the latest risk assessments?
-	•	Are lessons learned from past incidents or audits used to refine the scanning process?
+	•	Is the treatment of medium and low vulnerabilities reviewed annually to ensure the approach remains effective?
+	•	Are new scanning tools or methods considered to better detect and remediate medium and low vulnerabilities?
 
 6. Are there defined and documented policies and procedures for performing the entity’s targeted risk analyses (TRA) consistently?
-	•	Are the scanning processes and remediation workflows documented and regularly reviewed?
-	•	Is there a defined escalation process for addressing vulnerabilities that remain unresolved beyond the agreed timeline?
-
-This structure combines the standard TRA questions with sub-questions tailored to each requirement to help gather precise information. Would you like me to refine further or add specific examples for better clarity?
+	•	Are policies in place to track, prioritize, and remediate medium and low vulnerabilities within defined timelines?
+	•	How are scanning results communicated to relevant teams for action, and how is progress tracked?
+	•	Is there a process to validate that medium and low vulnerabilities are appropriately mitigated and documented for compliance?
