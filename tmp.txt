@@ -1,31 +1,67 @@
-import openpyxl
-import re
+Below are the customized TRA templates for Requirement 8.6.3 and Requirement 11.3.1.1, using the original headings from the TRA file and adding sub-questions specific to each requirement. The goal is to ensure the information gathered allows the PCI team to provide precise and comprehensive answers.
 
-def parse_excel_for_data(filename):
-    workbook = openpyxl.load_workbook(filename)
-    worksheet = workbook.active
+TRA Template for Requirement 8.6.3
 
-    data_list = []
-    for row in worksheet.iter_rows(min_row=2):  # Skip the header row
-        ciid = row[1].value
-        application_name = row[2].value
-        ssoid_str = row[3].value
+Requirement: Prevent unauthorized access to accounts by detecting and responding to suspicious login attempts.
 
-        if ssoid_str:
-            match = re.search(r'\d{9}', ssoid_str)
-            if match:
-                ssoid = match.group()
-            else:
-                ssoid = []  # Empty list for invalid SSOID
-        else:
-            ssoid = []  # Empty list for empty SSOID
+1. Identify the Asset(s) being protected.
+	•	What systems or applications are covered by this requirement?
+	•	Are there high-risk accounts or privileged users associated with these assets?
+	•	Are these systems integrated with centralized authentication mechanisms (e.g., Active Directory, Okta)?
 
-        data_list.append([ciid, application_name, ssoid])
+2. Identify the threat(s) that the requirement is protecting against.
+	•	What are the potential unauthorized login methods or attack vectors (e.g., brute force, phishing, session hijacking)?
+	•	Have these threats been observed in the environment in the past?
+	•	Are there known threat actors or external entities that target similar systems?
 
-    return data_list
+3. Identify the factor(s) that contribute to the likelihood and/or impact of the threat being realized.
+	•	Are there specific times or conditions (e.g., after a breach elsewhere) when login attempts increase?
+	•	How robust are the implemented monitoring systems for detecting anomalies (e.g., failed login attempts)?
+	•	What would be the operational or financial impact if an unauthorized login attempt succeeded?
 
-# Example usage:
-filename = "your_excel_file.xlsx"
-data_list = parse_excel_for_data(filename)
+4. Describe the analysis of and justification for how frequently the requirement must be performed to minimize the likelihood of the threat being realized.
+	•	How often are login logs reviewed for anomalies or suspicious activity?
+	•	What is the process for analyzing and validating flagged login attempts as potential threats?
+	•	Is the detection system configured to provide real-time alerts for suspicious behavior?
 
-print(data_list)
+5. Is an updated analysis needed, based on an annual review?
+	•	How frequently is the effectiveness of the suspicious login monitoring mechanism reviewed?
+	•	Are the latest threat patterns and attack methods incorporated into the analysis?
+
+6. Are there defined and documented policies and procedures for performing the entity’s targeted risk analyses (TRA) consistently?
+	•	Are policies and procedures available for monitoring, detecting, and responding to suspicious logins?
+	•	Is training provided to administrators and end-users on secure login practices and monitoring alerts?
+
+TRA Template for Requirement 11.3.1.1
+
+Requirement: Perform external and internal vulnerability scans at least quarterly or after any significant change in the network.
+
+1. Identify the Asset(s) being protected.
+	•	What external and internal systems are included in the scope for vulnerability scans?
+	•	Are any systems excluded from scanning? If so, what is the rationale?
+	•	Are scanning tools configured to cover the full scope of in-scope assets?
+
+2. Identify the threat(s) that the requirement is protecting against.
+	•	What types of vulnerabilities are most commonly targeted in the industry or your environment?
+	•	Are there past instances where unpatched vulnerabilities led to security incidents?
+	•	How do emerging threats, such as zero-day vulnerabilities, factor into the threat landscape?
+
+3. Identify the factor(s) that contribute to the likelihood and/or impact of the threat being realized.
+	•	How frequently are high or critical vulnerabilities discovered during scans?
+	•	What would be the impact if a critical vulnerability were exploited before remediation?
+	•	Are there any external factors (e.g., regulatory scrutiny) that increase the impact of vulnerabilities?
+
+4. Describe the analysis of and justification for how frequently the requirement must be performed to minimize the likelihood of the threat being realized.
+	•	What is the frequency of routine vulnerability scans, and is it aligned with your risk exposure?
+	•	How quickly are scans performed after significant changes (e.g., system upgrades, new integrations)?
+	•	Are there additional manual or automated checks conducted between quarterly scans?
+
+5. Is an updated analysis needed, based on an annual review?
+	•	Is the frequency of vulnerability scans adjusted based on the latest risk assessments?
+	•	Are lessons learned from past incidents or audits used to refine the scanning process?
+
+6. Are there defined and documented policies and procedures for performing the entity’s targeted risk analyses (TRA) consistently?
+	•	Are the scanning processes and remediation workflows documented and regularly reviewed?
+	•	Is there a defined escalation process for addressing vulnerabilities that remain unresolved beyond the agreed timeline?
+
+This structure combines the standard TRA questions with sub-questions tailored to each requirement to help gather precise information. Would you like me to refine further or add specific examples for better clarity?
