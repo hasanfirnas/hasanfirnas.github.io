@@ -151,3 +151,17 @@ Questions:
 Evidence to Request:
 	•	Password change logs.
 	•	Policy specifying password rotation frequency.
+
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+8.3.6 = "Do all user accounts in your application enforce a minimum password length of 12 characters (or 8 if the system does not support 12)?" (Yes/No).
+
+8.4.2 = 
+	Questions:
+		1.	“Is MFA enabled for all vendors accessing your application?” (Yes/No).
+		2.	“Is MFA enabled for all customers accessing your application?” (Yes/No).
+		
+8.6.1 = “Do you restrict interactive login for all non-personal accounts (NPAs) in your application systems?” (Yes/No)
+
+8.6.3 = “Do you ensure that passwords for all non-personal accounts in your application are changed annually?” (Yes/No).
