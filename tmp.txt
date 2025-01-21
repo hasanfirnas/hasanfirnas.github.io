@@ -1,39 +1,69 @@
-function main(workbook: ExcelScript.Workbook, searchStrings: string[]) {
-    let sheet = workbook.getActiveWorksheet(); // Get the active worksheet.
-    let range = sheet.getUsedRange(); // Get all data in the worksheet.
-    let rowCount = range.getRowCount(); // Get the number of rows.
-    let columnCount = range.getColumnCount(); // Get the number of columns.
+function main(workbook: ExcelScript.Workbook, searchStrings: string) {
+  // Split the input string into an array of strings to search for
+  let stringsToSearch = searchStrings.split(",").map(s => s.trim());
 
-    // To store strings not found
-    let notFoundStrings: string[] = [];
+  // Get the active worksheet
+  let sheet = workbook.getActiveWorksheet();
 
-    // Loop through each string in the searchStrings array
-    for (let searchString of searchStrings) {
-        let found = false;
+  // Get the used range of the worksheet
+  let range = sheet.getUsedRange();
 
-        // Loop through each cell in the used range
-        for (let row = 0; row < rowCount; row++) {
-            for (let col = 0; col < columnCount; col++) {
-                let cellValue = range.getCell(row, col).getText();
+  // If no range is found, exit the script
+  if (!range) {
+    console.log("No data found in the worksheet.");
+    return;
+  }
 
-                // If a match is found
-                if (cellValue === searchString) {
-                    found = true;
-                    let cell = range.getCell(row, col);
-                    cell.getFormat().setHorizontalAlignment("Left");
-                    cell.getFormat().getFont().setStrikethrough(true); // Apply strike-through.
-                }
-            }
+  // Get the total number of rows in the used range
+  let rowCount = range.getRowCount();
+
+  // Initialize arrays to track found and not-found strings
+  let foundStrings: string[] = [];
+  let notFoundStrings: string[] = [...stringsToSearch];
+
+  // Loop through each row to find the strings
+  for (let i = 0; i < rowCount; i++) {
+    let row = range.getRow(i);
+
+    // Check if any cell in the row contains any of the search strings
+    let cells = row.getValues()[0];
+    stringsToSearch.forEach(searchString => {
+      if (cells.some(cell => cell && cell.toString().includes(searchString))) {
+        // If found, add to the foundStrings array (if not already added)
+        if (!foundStrings.includes(searchString)) {
+          foundStrings.push(searchString);
         }
 
-        // If the string was not found in the worksheet
-        if (!found) {
-            notFoundStrings.push(searchString);
-        }
-    }
+        // Remove the string from the notFoundStrings array
+        notFoundStrings = notFoundStrings.filter(s => s !== searchString);
 
-    // Log or return the strings that were not found
-    if (notFoundStrings.length > 0) {
-        console.log("The following strings were not found: " + notFoundStrings.join(", "));
-    }
+        // Apply strikethrough formatting to the row
+        let cellCount = row.getColumnCount();
+        for (let j = 0; j < cellCount; j++) {
+          let cell = row.getCell(0, j);
+          cell.getFormat().getFont().setStrikethrough(true); // Apply strikethrough
+          cell.getFormat().getFill().setColor("yellow");     // Apply yellow highlight
+        }
+      }
+    });
+  }
+
+  // Create a new sheet for the summary
+  let summarySheet = workbook.addWorksheet("Search Summary");
+
+  // Add headings
+  summarySheet.getRange("A1").setValue("Found Strings");
+  summarySheet.getRange("B1").setValue("Not Found Strings");
+
+  // Populate found strings in column A
+  if (foundStrings.length > 0) {
+    summarySheet.getRange(`A2:A${foundStrings.length + 1}`).setValues(foundStrings.map(s => [s]));
+  }
+
+  // Populate not-found strings in column B
+  if (notFoundStrings.length > 0) {
+    summarySheet.getRange(`B2:B${notFoundStrings.length + 1}`).setValues(notFoundStrings.map(s => [s]));
+  }
+
+  console.log("Search summary has been logged in the sheet: 'Search Summary'.");
 }
