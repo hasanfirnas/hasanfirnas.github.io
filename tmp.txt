@@ -1,167 +1,37 @@
-Thank you for your patience! I’ve cross-verified the requirements against the PCI DSS 4.0.1 document. Below is the consolidated response for all the requirements you provided, structured as:
-	1.	Requirement Number and Defined Requirement
-	2.	Suggestion: Whether it should be in the PCI portal or centralized.
-	3.	Questions: Clear and actionable.
-	4.	Evidence to Request
+function main(workbook: ExcelScript.Workbook, searchStrings: string) {
+  // Split the input string into an array of strings to search for
+  let stringsToSearch = searchStrings.split(",").map(s => s.trim());
 
-Requirement 7.1.2
+  // Get the active worksheet
+  let sheet = workbook.getActiveWorksheet();
+  
+  // Get the used range of the worksheet
+  let range = sheet.getUsedRange();
+  
+  // If no range is found, exit the script
+  if (!range) {
+    console.log("No data found in the worksheet.");
+    return;
+  }
 
-Defined Requirement: Roles and responsibilities for performing activities in Requirement 7 are documented, assigned, and understood  .
+  // Get the total number of rows in the used range
+  let rowCount = range.getRowCount();
 
-Suggestion:
-	•	Should be in PCI Portal: Application teams are responsible for defining and understanding access control roles within their application environment.
-
-Questions:
-	1.	“Are roles and responsibilities for managing access to your application defined and documented?” (Yes/No).
-	2.	“Do the assigned personnel understand their responsibilities for access management?” (Yes/No).
-
-Evidence to Request:
-	•	Access control policy or responsibility matrix.
-	•	Documentation showing assigned roles and responsibilities.
-
-Requirement 7.2.4
-
-Defined Requirement: All user accounts and related access privileges, including third-party/vendor accounts, are reviewed at least once every six months to ensure they remain appropriate  .
-
-Suggestion:
-	•	Can be Centralized at InfoSec Level: Regular user access reviews are often coordinated by a centralized team for consistency.
-
-Questions (if included in PCI Portal):
-	1.	“Do you review all user accounts and access privileges for your application every six months?” (Yes/No).
-	2.	“Do you document and address any inappropriate access identified during these reviews?” (Yes/No).
-
-Evidence to Request:
-	•	Logs of access reviews for the past six months.
-	•	Policies outlining the review process.
-
-Requirement 7.2.5
-
-Defined Requirement: All application and system accounts and access privileges are managed based on least privilege and limited to specific systems/applications that require their use  .
-
-Suggestion:
-	•	Should be in PCI Portal: Application teams handle the configuration of privileges for their systems.
-
-Questions:
-	1.	“Are all application and system accounts configured with the least privileges necessary for their operation?” (Yes/No).
-	2.	“Is access limited to only the systems and applications requiring it?” (Yes/No).
-
-Evidence to Request:
-	•	Account privilege settings for the application.
-	•	Policy or documentation on least privilege implementation.
-
-Requirement 7.2.5.1
-
-Defined Requirement: All access by application and system accounts is reviewed periodically to ensure appropriateness based on risk analysis  .
-
-Suggestion:
-	•	Can be Centralized at InfoSec Level: Periodic access reviews align better with centralized oversight.
-
-Questions (if included in PCI Portal):
-	1.	“Do you periodically review access by system and application accounts to ensure appropriateness?” (Yes/No).
-
-Evidence to Request:
-	•	Results of the most recent periodic reviews.
-	•	Risk analysis determining review frequency.
-
-Requirement 8.1.2
-
-Defined Requirement: Roles and responsibilities for activities in Requirement 8 are documented, assigned, and understood  .
-
-Suggestion:
-	•	Should be in PCI Portal: Application teams manage user and administrator accounts specific to their systems.
-
-Questions:
-	1.	“Are roles and responsibilities for managing user and administrator accounts in your application documented?” (Yes/No).
-	2.	“Are the personnel assigned these roles aware of their responsibilities?” (Yes/No).
-
-Evidence to Request:
-	•	Role assignments and account management policy.
-	•	Documentation or matrix showing responsibilities.
-
-Requirement 8.3.6
-
-Defined Requirement: If passwords/passphrases are used as authentication factors to meet Requirement 8.3.1, 
-
-Suggestion:
-		Should be in PCI Portal: Application teams control password policies for their systems and can ensure compliance with these requirements.
-Questions:
-
-		a. "Do all user accounts in your application enforce a minimum password length of 12 characters (or 8 if the system does not support 12)?" (Yes/No).
-		b. "Do password policies enforce the inclusion of both numeric and alphabetic characters?" (Yes/No).
-Evidence to Request:
-
-		○ Configuration settings showing password complexity enforcement.
-		○ Policy documents outlining password requirements.
-
-
-Requirement 8.4.2
-
-Defined Requirement: MFA is enabled for all vendor and customer accounts accessing the cardholder data environment  .
-
-Suggestion:
-	•	Should be in PCI Portal: Application teams oversee vendor/customer access to their systems.
-
-Questions:
-	1.	“Is MFA enabled for all vendors accessing your application?” (Yes/No).
-	2.	“Is MFA enabled for all customers accessing your application?” (Yes/No).
-
-Evidence to Request:
-	•	Logs showing MFA enforcement.
-	•	Policy requiring MFA for vendors and customers.
-
-Requirement 8.5.1
-
-Defined Requirement: Unique, strong passwords are used for all system accounts  .
-
-Suggestion:
-	•	Should be in PCI Portal: Password policies often vary by application, making it relevant for application teams.
-
-Questions:
-	1.	“Do you enforce unique, strong passwords for all accounts in your application?” (Yes/No).
-	2.	“Do you have a password policy specifying complexity and length requirements?” (Yes/No).
-
-Evidence to Request:
-	•	Password policy document.
-	•	Sample account configurations showing compliance.
-
-Requirement 8.6.1
-
-Defined Requirement: Interactive login is restricted for non-personal accounts (NPAs)  .
-
-Suggestion:
-	•	Should be in PCI Portal: Application teams can verify compliance for their accounts.
-
-Questions:
-	1.	“Do you restrict interactive logins for non-personal accounts (NPAs) in your application?” (Yes/No).
-
-Evidence to Request:
-	•	Account configuration settings.
-	•	Documentation or policy restricting interactive logins.
-
-Requirement 8.6.3
-
-Defined Requirement: Passwords for all non-personal accounts are changed at least annually  .
-
-Suggestion:
-	•	Should be in PCI Portal: Application teams can ensure compliance within their systems.
-
-Questions:
-	1.	“Do you ensure that passwords for all non-personal accounts in your application are changed annually?” (Yes/No).
-
-Evidence to Request:
-	•	Password change logs.
-	•	Policy specifying password rotation frequency.
-
-
-++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
-8.3.6 = "Do all user accounts in your application enforce a minimum password length of 12 characters (or 8 if the system does not support 12)?" (Yes/No).
-
-8.4.2 = 
-	Questions:
-		1.	“Is MFA enabled for all vendors accessing your application?” (Yes/No).
-		2.	“Is MFA enabled for all customers accessing your application?” (Yes/No).
-		
-8.6.1 = “Do you restrict interactive login for all non-personal accounts (NPAs) in your application systems?” (Yes/No)
-
-8.6.3 = “Do you ensure that passwords for all non-personal accounts in your application are changed annually?” (Yes/No).
+  // Loop through each row to find the strings
+  for (let i = 0; i < rowCount; i++) {
+    let row = range.getRow(i);
+    
+    // Check if any cell in the row contains any of the search strings
+    let cells = row.getValues()[0];
+    if (cells.some(cell => 
+        stringsToSearch.some(searchString => 
+          cell && cell.toString().includes(searchString)))) {
+      
+      // Apply strikethrough formatting to each cell in the row
+      let cellCount = row.getColumnCount();
+      for (let j = 0; j < cellCount; j++) {
+        row.getCell(0, j).getFormat().getFont().setStrikethrough(true);
+      }
+    }
+  }
+}
