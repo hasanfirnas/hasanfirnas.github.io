@@ -1,26 +1,39 @@
-import re
+function main(workbook: ExcelScript.Workbook, searchStrings: string[]) {
+    let sheet = workbook.getActiveWorksheet(); // Get the active worksheet.
+    let range = sheet.getUsedRange(); // Get all data in the worksheet.
+    let rowCount = range.getRowCount(); // Get the number of rows.
+    let columnCount = range.getColumnCount(); // Get the number of columns.
 
-# Define the file name
-file_name = "text.txt"
+    // To store strings not found
+    let notFoundStrings: string[] = [];
 
-# Define the formula/pattern to search
-# Example: Searching for email addresses
-search_pattern = r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
+    // Loop through each string in the searchStrings array
+    for (let searchString of searchStrings) {
+        let found = false;
 
-try:
-    # Read the file
-    with open(file_name, "r") as file:
-        content = file.read()
-    
-    # Search for all matches based on the pattern
-    matches = re.findall(search_pattern, content)
-    
-    # Check if matches are found
-    if matches:
-        print("Matches found:")
-        for match in matches:
-            print(match)
-    else:
-        print("No matches found for the given pattern.")
-except FileNotFoundError:
-    print(f"Error: The file '{file_name}' does not exist.")
+        // Loop through each cell in the used range
+        for (let row = 0; row < rowCount; row++) {
+            for (let col = 0; col < columnCount; col++) {
+                let cellValue = range.getCell(row, col).getText();
+
+                // If a match is found
+                if (cellValue === searchString) {
+                    found = true;
+                    let cell = range.getCell(row, col);
+                    cell.getFormat().setHorizontalAlignment("Left");
+                    cell.getFormat().getFont().setStrikethrough(true); // Apply strike-through.
+                }
+            }
+        }
+
+        // If the string was not found in the worksheet
+        if (!found) {
+            notFoundStrings.push(searchString);
+        }
+    }
+
+    // Log or return the strings that were not found
+    if (notFoundStrings.length > 0) {
+        console.log("The following strings were not found: " + notFoundStrings.join(", "));
+    }
+}
