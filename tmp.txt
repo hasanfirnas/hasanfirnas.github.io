@@ -1,43 +1,43 @@
 function main(workbook: ExcelScript.Workbook) {
-  // Get worksheets
+  // Get the worksheets
   let sheet1 = workbook.getWorksheet("Sheet1");
   let sheet3 = workbook.getWorksheet("Sheet3");
 
-  // Get the ranges
+  // Get the data ranges
   let sheet1B = sheet1.getRange("B2:B" + sheet1.getUsedRange().getLastRow() + 1).getValues();
   let sheet3E = sheet3.getRange("E2:E" + sheet3.getUsedRange().getLastRow() + 1).getValues();
   let sheet3B = sheet3.getRange("B2:B" + sheet3.getUsedRange().getLastRow() + 1).getValues();
 
-  // Prepare output for Sheet1 Column A
-  let sheet1A = [];
+  // Prepare an array to store output for Sheet1, Column A
+  let output = [];
 
-  // Process each row in Sheet1, Column B
+  // Loop through each row in Sheet1, Column B
   for (let i = 0; i < sheet1B.length; i++) {
-    let cellValue = sheet1B[i][0];
-    let extractedValue = "";
+    let searchValue = sheet1B[i][0]?.trim(); // Get the value from Sheet1, Column B
+    let matched = false;
 
-    // Extract text between "DB instance:" and "</li>"
-    let match = cellValue.match(/DB instance:\s*(.*?)<\/li>/);
-    if (match) {
-      extractedValue = match[1].trim();
-    }
-
-    // Match with Sheet3, Column E
-    let found = false;
+    // Check against each row in Sheet3, Column E
     for (let j = 0; j < sheet3E.length; j++) {
-      if (extractedValue === sheet3E[j][0]) {
-        sheet1A.push([sheet3B[j][0]]); // Add corresponding Sheet3 Column B value
-        found = true;
-        break;
+      let cellValue = sheet3E[j][0]?.toString(); // Get the value from Sheet3, Column E
+      
+      // Use regex to extract "DB instance" value if present
+      let match = cellValue.match(/DB instance:\s*(.*?)<\/li>/);
+      let extractedValue = match ? match[1].trim() : null;
+
+      // Check if the extracted value matches the search value
+      if (searchValue && extractedValue === searchValue) {
+        output.push([sheet3B[j][0]]); // Push the corresponding Sheet3, Column B value
+        matched = true;
+        break; // Stop searching once a match is found
       }
     }
 
-    // If no match, add an empty string
-    if (!found) {
-      sheet1A.push([""]);
+    // If no match, add an empty string to the output
+    if (!matched) {
+      output.push([""]);
     }
   }
 
-  // Write results to Sheet1, Column A
-  sheet1.getRange("A2:A" + (sheet1A.length + 1)).setValues(sheet1A);
+  // Write the results to Sheet1, Column A
+  sheet1.getRange("A2:A" + (output.length + 1)).setValues(output);
 }
