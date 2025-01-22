@@ -3,17 +3,17 @@ function main(workbook: ExcelScript.Workbook) {
   let sheet1 = workbook.getWorksheet("Sheet1");
   let sheet3 = workbook.getWorksheet("Sheet3");
 
-  // Get the data ranges
-  let sheet1B = sheet1.getRange("B2:B" + sheet1.getUsedRange().getLastRow() + 1).getValues();
-  let sheet3E = sheet3.getRange("E2:E" + sheet3.getUsedRange().getLastRow() + 1).getValues();
-  let sheet3B = sheet3.getRange("B2:B" + sheet3.getUsedRange().getLastRow() + 1).getValues();
+  // Get the data ranges and explicitly define types
+  let sheet1B: (string | number | boolean)[][] = sheet1.getRange("B2:B" + sheet1.getUsedRange().getLastRow() + 1).getValues();
+  let sheet3E: (string | number | boolean)[][] = sheet3.getRange("E2:E" + sheet3.getUsedRange().getLastRow() + 1).getValues();
+  let sheet3B: (string | number | boolean)[][] = sheet3.getRange("B2:B" + sheet3.getUsedRange().getLastRow() + 1).getValues();
 
   // Prepare an array to store output for Sheet1, Column A
-  let output = [];
+  let output: (string | number)[][] = [];
 
   // Loop through each row in Sheet1, Column B
   for (let i = 0; i < sheet1B.length; i++) {
-    let searchValue = sheet1B[i][0]?.trim(); // Get the value from Sheet1, Column B
+    let searchValue = sheet1B[i][0]?.toString().trim(); // Get the value from Sheet1, Column B
     let matched = false;
 
     // Check against each row in Sheet3, Column E
