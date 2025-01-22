@@ -1,25 +1,20 @@
-function main(workbook: ExcelScript.Workbook) {
-  // Get the active worksheet
-  let sheet = workbook.getActiveWorksheet();
+import openpyxl
 
-  // Get the data from Column E
-  let columnE = sheet.getRange("E2:E" + sheet.getUsedRange().getLastRow()).getValues();
+# Function to open the Excel file and print sheet names
+def print_sheet_names(file_path):
+    try:
+        # Load the workbook
+        workbook = openpyxl.load_workbook(file_path)
+        
+        # Print all sheet names
+        print("Sheet names in the workbook:")
+        for sheet in workbook.sheetnames:
+            print(sheet)
+    except FileNotFoundError:
+        print(f"File not found: {file_path}")
+    except Exception as e:
+        print(f"An error occurred: {e}")
 
-  // Prepare an array to store extracted DB instance IDs
-  let extractedValues: string[][] = [];
-
-  // Loop through each cell in Column E
-  for (let i = 0; i < columnE.length; i++) {
-    let cellValue = columnE[i][0]?.toString() || ""; // Get the cell value as a string
-
-    // Extract the DB instance ID using regex
-    let match = cellValue.match(/DB instance:\s*(.*?)<\/li>/);
-    let extractedValue = match ? match[1].trim() : ""; // Get the text or leave it empty if no match
-
-    // Add the extracted value to the output array
-    extractedValues.push([extractedValue]);
-  }
-
-  // Write the extracted values to Column F
-  sheet.getRange("F2:F" + (extractedValues.length + 1)).setValues(extractedValues);
-}
+# Example usage
+file_path = "your_file.xlsx"  # Replace with the path to your Excel file
+print_sheet_names(file_path)
