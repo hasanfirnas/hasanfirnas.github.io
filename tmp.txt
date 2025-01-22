@@ -1,43 +1,25 @@
 function main(workbook: ExcelScript.Workbook) {
-  // Get the worksheets
-  let sheet1 = workbook.getWorksheet("Sheet1");
-  let sheet3 = workbook.getWorksheet("Sheet3");
+  // Get the active worksheet
+  let sheet = workbook.getActiveWorksheet();
 
-  // Get the data ranges and explicitly define types
-  let sheet1B: (string | number | boolean)[][] = sheet1.getRange("B2:B" + sheet1.getUsedRange().getLastRow() + 1).getValues();
-  let sheet3E: (string | number | boolean)[][] = sheet3.getRange("E2:E" + sheet3.getUsedRange().getLastRow() + 1).getValues();
-  let sheet3B: (string | number | boolean)[][] = sheet3.getRange("B2:B" + sheet3.getUsedRange().getLastRow() + 1).getValues();
+  // Get the data from Column E
+  let columnE = sheet.getRange("E2:E" + sheet.getUsedRange().getLastRow()).getValues();
 
-  // Prepare an array to store output for Sheet1, Column A
-  let output: (string | number)[][] = [];
+  // Prepare an array to store extracted DB instance IDs
+  let extractedValues: string[][] = [];
 
-  // Loop through each row in Sheet1, Column B
-  for (let i = 0; i < sheet1B.length; i++) {
-    let searchValue = sheet1B[i][0]?.toString().trim(); // Get the value from Sheet1, Column B
-    let matched = false;
+  // Loop through each cell in Column E
+  for (let i = 0; i < columnE.length; i++) {
+    let cellValue = columnE[i][0]?.toString() || ""; // Get the cell value as a string
 
-    // Check against each row in Sheet3, Column E
-    for (let j = 0; j < sheet3E.length; j++) {
-      let cellValue = sheet3E[j][0]?.toString(); // Get the value from Sheet3, Column E
-      
-      // Use regex to extract "DB instance" value if present
-      let match = cellValue.match(/DB instance:\s*(.*?)<\/li>/);
-      let extractedValue = match ? match[1].trim() : null;
+    // Extract the DB instance ID using regex
+    let match = cellValue.match(/DB instance:\s*(.*?)<\/li>/);
+    let extractedValue = match ? match[1].trim() : ""; // Get the text or leave it empty if no match
 
-      // Check if the extracted value matches the search value
-      if (searchValue && extractedValue === searchValue) {
-        output.push([sheet3B[j][0]]); // Push the corresponding Sheet3, Column B value
-        matched = true;
-        break; // Stop searching once a match is found
-      }
-    }
-
-    // If no match, add an empty string to the output
-    if (!matched) {
-      output.push([""]);
-    }
+    // Add the extracted value to the output array
+    extractedValues.push([extractedValue]);
   }
 
-  // Write the results to Sheet1, Column A
-  sheet1.getRange("A2:A" + (output.length + 1)).setValues(output);
+  // Write the extracted values to Column F
+  sheet.getRange("F2:F" + (extractedValues.length + 1)).setValues(extractedValues);
 }
