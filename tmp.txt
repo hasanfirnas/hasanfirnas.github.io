@@ -2,22 +2,31 @@ function main(workbook: ExcelScript.Workbook) {
   // Get the worksheet by name
   const sheet = workbook.getWorksheet("Unique");
 
-  // Define the range for search (Column C) and the result column (Column E)
-  const searchColumn: (string | undefined)[][] = sheet.getRange("C:C").getTexts();
-  const resultColumn = sheet.getRange("E:E");
+  // Define the range for search (Column C) and result column (Column E)
+  const searchColumnRange = sheet.getRange("C1:C" + sheet.getUsedRange().getRowCount());
+  const searchColumn = searchColumnRange.getTexts();
+  const resultColumnRange = sheet.getRange("E1:E" + sheet.getUsedRange().getRowCount());
 
   // Define the search terms directly in the script
-  const searchTerms: string[] = ["apple", "banana", "orange"]; // Replace with your own terms
+  const searchTerms: string[] = [
+    "acmpr03", "alpipr11", "alptpr11", "ancmpr01", "appsonl",
+    "arrspr1", "askppr01", "atrapr01", "bmppr01", "cctpr1",
+    "deprj1", "dm9apr1", "ebilpr01", "ecomppr1", "epaypr1",
+    "etalipr01", "postpr01", "ptplpr01", "ptprpr01", "sfcmpr01"
+  ]; // Replace with your own terms
+
+  // Initialize result array
+  const resultValues: string[][] = [];
 
   // Process each row in Column C and check for matches
-  const resultValues: (string | undefined)[][] = searchColumn.map(row => {
-    const cellValue: string = row[0]?.toLowerCase() || "";
-    const isMatch: boolean = searchTerms.some(term => cellValue.includes(term.toLowerCase()));
-    return [isMatch ? "Yes" : ""];
+  searchColumn.forEach((row, index) => {
+    const cellValue: string = row[0]?.toLowerCase() || ""; // Handle empty cells
+    const isMatch = searchTerms.some(term => cellValue.includes(term.toLowerCase()));
+    resultValues.push([isMatch ? "Yes" : ""]);
   });
 
   // Write the results to Column E
-  resultColumn.setValues(resultValues);
+  resultColumnRange.setValues(resultValues);
 
-  console.log("Script execution completed. Results written in Column E.");
+  console.log("Script execution completed. Results written to Column E.");
 }
