@@ -1,26 +1,26 @@
 function main(workbook: ExcelScript.Workbook) {
-  // Get the active worksheet
-  const sheet = workbook.getActiveWorksheet();
+  // Get the worksheet by name
+  const sheet = workbook.getWorksheet("Unique");
 
-  // Define the column for search (Column C) and the result column (Column E)
-  const searchColumn = sheet.getRange("C:C").getValues();
+  // Define the range for search (Column C) and the result column (Column E)
+  const searchColumn: (string | undefined)[][] = sheet.getRange("C:C").getTexts();
   const resultColumn = sheet.getRange("E:E");
 
   // Prompt the user for search terms
-  const searchTermsInput = prompt("Enter the text to search for, separated by commas:");
+  const searchTermsInput: string = prompt("Enter the text to search for, separated by commas:");
   if (!searchTermsInput) {
     console.log("No search terms provided. Exiting script.");
     return;
   }
 
   // Split the search terms into an array
-  const searchTerms = searchTermsInput.split(",").map(term => term.trim());
+  const searchTerms: string[] = searchTermsInput.split(",").map(term => term.trim().toLowerCase());
 
   // Loop through each row and search for matches in Column C
-  const resultValues = searchColumn.map(row => {
-    const cellValue = row[0]?.toString().toLowerCase() || "";
-    const isMatch = searchTerms.some(term => cellValue.includes(term.toLowerCase()));
-    return [isMatch ? "Yes" : ""]; // Return "Yes" if match, otherwise blank
+  const resultValues: (string | undefined)[][] = searchColumn.map(row => {
+    const cellValue: string = row[0]?.toLowerCase() || "";
+    const isMatch: boolean = searchTerms.some(term => cellValue.includes(term));
+    return [isMatch ? "Yes" : ""];
   });
 
   // Write the results to Column E
