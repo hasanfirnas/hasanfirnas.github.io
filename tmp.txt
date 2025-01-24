@@ -1,38 +1,30 @@
-Sub SearchAndMark()
-    Dim ws As Worksheet
-    Dim searchText As String
-    Dim searchArray() As String
-    Dim lastRow As Long
-    Dim i As Long, j As Long
+function main(workbook: ExcelScript.Workbook) {
+  // Get the active worksheet
+  const sheet = workbook.getActiveWorksheet();
 
-    ' Define the worksheet and search text
-    Set ws = ThisWorkbook.Sheets(1) ' Change to your sheet name if needed
-    searchText = InputBox("Enter the text to search for, separated by commas:")
-    searchArray = Split(searchText, ",") ' Split the text into an array
+  // Define the column for search (Column C) and the result column (Column E)
+  const searchColumn = sheet.getRange("C:C").getValues();
+  const resultColumn = sheet.getRange("E:E");
 
-    ' Find the last row in Column C
-    lastRow = ws.Cells(ws.Rows.Count, "C").End(xlUp).Row
+  // Prompt the user for search terms
+  const searchTermsInput = prompt("Enter the text to search for, separated by commas:");
+  if (!searchTermsInput) {
+    console.log("No search terms provided. Exiting script.");
+    return;
+  }
 
-    ' Loop through each row in Column C
-    For i = 1 To lastRow
-        Dim found As Boolean
-        found = False
+  // Split the search terms into an array
+  const searchTerms = searchTermsInput.split(",").map(term => term.trim());
 
-        ' Check each search term in the current row
-        For j = LBound(searchArray) To UBound(searchArray)
-            If InStr(1, ws.Cells(i, "C").Value, Trim(searchArray(j)), vbTextCompare) > 0 Then
-                found = True
-                Exit For
-            End If
-        Next j
+  // Loop through each row and search for matches in Column C
+  const resultValues = searchColumn.map(row => {
+    const cellValue = row[0]?.toString().toLowerCase() || "";
+    const isMatch = searchTerms.some(term => cellValue.includes(term.toLowerCase()));
+    return [isMatch ? "Yes" : ""]; // Return "Yes" if match, otherwise blank
+  });
 
-        ' Write "Yes" in Column E if any search term is found
-        If found Then
-            ws.Cells(i, "E").Value = "Yes"
-        Else
-            ws.Cells(i, "E").Value = ""
-        End If
-    Next i
+  // Write the results to Column E
+  resultColumn.setValues(resultValues);
 
-    MsgBox "Search complete. Results written in Column E.", vbInformation
-End Sub
+  console.log("Script execution completed. Results written in Column E.");
+}
