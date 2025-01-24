@@ -6,20 +6,13 @@ function main(workbook: ExcelScript.Workbook) {
   const searchColumn: (string | undefined)[][] = sheet.getRange("C:C").getTexts();
   const resultColumn = sheet.getRange("E:E");
 
-  // Prompt the user for search terms
-  const searchTermsInput: string = prompt("Enter the text to search for, separated by commas:");
-  if (!searchTermsInput) {
-    console.log("No search terms provided. Exiting script.");
-    return;
-  }
+  // Define the search terms directly in the script
+  const searchTerms: string[] = ["apple", "banana", "orange"]; // Replace with your own terms
 
-  // Split the search terms into an array
-  const searchTerms: string[] = searchTermsInput.split(",").map(term => term.trim().toLowerCase());
-
-  // Loop through each row and search for matches in Column C
+  // Process each row in Column C and check for matches
   const resultValues: (string | undefined)[][] = searchColumn.map(row => {
     const cellValue: string = row[0]?.toLowerCase() || "";
-    const isMatch: boolean = searchTerms.some(term => cellValue.includes(term));
+    const isMatch: boolean = searchTerms.some(term => cellValue.includes(term.toLowerCase()));
     return [isMatch ? "Yes" : ""];
   });
 
