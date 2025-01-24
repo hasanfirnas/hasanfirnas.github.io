@@ -1,47 +1,38 @@
-import openpyxl
+Sub SearchAndMark()
+    Dim ws As Worksheet
+    Dim searchText As String
+    Dim searchArray() As String
+    Dim lastRow As Long
+    Dim i As Long, j As Long
 
-def process_excel(file_path):
-    try:
-        # Load the workbook and sheets
-        workbook = openpyxl.load_workbook(file_path)
-        unique_sheet = workbook["Unique"]
-        pci_sheet = workbook["PCI data"]
+    ' Define the worksheet and search text
+    Set ws = ThisWorkbook.Sheets(1) ' Change to your sheet name if needed
+    searchText = InputBox("Enter the text to search for, separated by commas:")
+    searchArray = Split(searchText, ",") ' Split the text into an array
 
-        # Get data ranges
-        unique_values = unique_sheet['C']  # Column C in "Unique" sheet
-        pci_data_column_e = pci_sheet['E']  # Column E in "PCI data"
-        
-        # Loop through each value in "Unique" sheet, starting from row 2
-        for i in range(1, len(unique_values)):
-            search_value = unique_values[i].value  # Value from "Unique" Column C
-            if search_value is None:
-                continue  # Skip if cell is empty
+    ' Find the last row in Column C
+    lastRow = ws.Cells(ws.Rows.Count, "C").End(xlUp).Row
 
-            # Search for the value in "PCI data" Column E
-            matches = []
-            for j, cell in enumerate(pci_data_column_e):
-                if cell.value and str(search_value) in str(cell.value):
-                    # If match found, get Column A and B values
-                    value_a = pci_sheet.cell(row=j+1, column=1).value
-                    value_b = pci_sheet.cell(row=j+1, column=2).value
-                    matches.append(f"{value_a}, {value_b}")
+    ' Loop through each row in Column C
+    For i = 1 To lastRow
+        Dim found As Boolean
+        found = False
 
-            if matches:
-                # Combine matches and paste in Columns A and B of "Unique" sheet
-                unique_sheet.cell(row=i+1, column=1, value=", ".join([m.split(", ")[0] for m in matches]))
-                unique_sheet.cell(row=i+1, column=2, value=", ".join([m.split(", ")[1] for m in matches]))
-            else:
-                # Print "Not found" for unmatched value
-                print(f"Not found: {search_value}")
+        ' Check each search term in the current row
+        For j = LBound(searchArray) To UBound(searchArray)
+            If InStr(1, ws.Cells(i, "C").Value, Trim(searchArray(j)), vbTextCompare) > 0 Then
+                found = True
+                Exit For
+            End If
+        Next j
 
-        # Save the workbook
-        workbook.save(file_path)
-        print("Process completed successfully.")
+        ' Write "Yes" in Column E if any search term is found
+        If found Then
+            ws.Cells(i, "E").Value = "Yes"
+        Else
+            ws.Cells(i, "E").Value = ""
+        End If
+    Next i
 
-    except Exception as e:
-        print(f"An error occurred: {e}")
-
-
-# Example usage
-file_path = "your_file.xlsx"  # Replace with the path to your Excel file
-process_excel(file_path)
+    MsgBox "Search complete. Results written in Column E.", vbInformation
+End Sub
