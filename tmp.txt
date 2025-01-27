@@ -1,32 +1,32 @@
 function main(workbook: ExcelScript.Workbook) {
-  // Get the worksheet by name
-  const sheet = workbook.getWorksheet("Unique");
+  // Get the worksheets
+  const cmdbSheet = workbook.getWorksheet("CMDB ALL");
+  const appDbSheet = workbook.getWorksheet("App_DB");
 
-  // Define the range for search (Column C) and result column (Column E)
-  const searchColumnRange = sheet.getRange("C1:C" + sheet.getUsedRange().getRowCount());
-  const searchColumn = searchColumnRange.getTexts();
-  const resultColumnRange = sheet.getRange("E1:E" + sheet.getUsedRange().getRowCount());
+  // Get the data from CMDB ALL (Column C) and App_DB (Columns A and B)
+  const cmdbColumnC = cmdbSheet.getRange("C1:C" + cmdbSheet.getUsedRange().getRowCount()).getValues();
+  const appDbColumnA = appDbSheet.getRange("A1:A" + appDbSheet.getUsedRange().getRowCount()).getValues();
+  const appDbColumnB = appDbSheet.getRange("B1:B" + appDbSheet.getUsedRange().getRowCount()).getValues();
 
-  // Define the search terms directly in the script
-  const searchTerms: string[] = [
-    "acmpr03", "alpipr11", "alptpr11", "ancmpr01", "appsonl",
-    "arrspr1", "askppr01", "atrapr01", "bmppr01", "cctpr1",
-    "deprj1", "dm9apr1", "ebilpr01", "ecomppr1", "epaypr1",
-    "etalipr01", "postpr01", "ptplpr01", "ptprpr01", "sfcmpr01"
-  ]; // Replace with your own terms
+  // Create a map of App_DB Column B (key) to Column A (value)
+  const appDbMap: Record<string, string> = {};
+  for (let i = 0; i < appDbColumnB.length; i++) {
+    const key = appDbColumnB[i][0]; // Column B (key)
+    const value = appDbColumnA[i][0]; // Column A (value)
+    if (key) appDbMap[key] = value;
+  }
 
-  // Initialize result array
-  const resultValues: string[][] = [];
+  // Initialize results array for Column A of CMDB ALL
+  const cmdbResults: string[][] = [];
 
-  // Process each row in Column C and check for matches
-  searchColumn.forEach((row, index) => {
-    const cellValue: string = row[0]?.toLowerCase() || ""; // Handle empty cells
-    const isMatch = searchTerms.some(term => cellValue.includes(term.toLowerCase()));
-    resultValues.push([isMatch ? "Yes" : ""]);
+  // Check each value in CMDB ALL Column C
+  cmdbColumnC.forEach(row => {
+    const cmdbValue = row[0]; // Get value from Column C
+    cmdbResults.push([appDbMap[cmdbValue] || ""]); // Add corresponding value from App_DB Column A or leave blank
   });
 
-  // Write the results to Column E
-  resultColumnRange.setValues(resultValues);
+  // Write the results to Column A of CMDB ALL
+  cmdbSheet.getRange("A1:A" + cmdbColumnC.length).setValues(cmdbResults);
 
-  console.log("Script execution completed. Results written to Column E.");
+  console.log("Script completed: CMDB ALL Column A updated.");
 }
