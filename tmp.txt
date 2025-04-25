@@ -1,32 +1,29 @@
-function main(workbook: ExcelScript.Workbook) {
-  // Get the worksheets
-  const cmdbSheet = workbook.getWorksheet("CMDB ALL");
-  const appDbSheet = workbook.getWorksheet("App_DB");
+<div style="font-family:Segoe UI, sans-serif; background-color:transparent; color:#3B3C39; padding:20px; border-radius:8px; line-height:1.6;">
 
-  // Get the data from CMDB ALL (Column C) and App_DB (Columns A and B)
-  const cmdbColumnC = cmdbSheet.getRange("C1:C" + cmdbSheet.getUsedRange().getRowCount()).getValues();
-  const appDbColumnA = appDbSheet.getRange("A1:A" + appDbSheet.getUsedRange().getRowCount()).getValues();
-  const appDbColumnB = appDbSheet.getRange("B1:B" + appDbSheet.getUsedRange().getRowCount()).getValues();
+  <h2 style="color:#FBC600; text-align:center;">CI Creation & Compliance Task Coordination</h2>
 
-  // Create a map of App_DB Column B (key) to Column A (value)
-  const appDbMap: Record<string, string> = {};
-  for (let i = 0; i < appDbColumnB.length; i++) {
-    const key = appDbColumnB[i][0]; // Column B (key)
-    const value = appDbColumnA[i][0]; // Column A (value)
-    if (key) appDbMap[key] = value;
-  }
+  <div style="border: 1px solid #94969A; padding:12px; border-radius:6px; background-color:#F9F9F9; margin-bottom:20px; color:#3B3C39; text-align:center;">
+    This chat has been created to assist with the creation of a new Configuration Item (CI). All relevant members from the application team have been added to this chat, along with the respective reviewers. If needed, the application team can add additional members.
+  </div>
 
-  // Initialize results array for Column A of CMDB ALL
-  const cmdbResults: string[][] = [];
+  <hr style="border: 1px dashed #94969A;">
 
-  // Check each value in CMDB ALL Column C
-  cmdbColumnC.forEach(row => {
-    const cmdbValue = row[0]; // Get value from Column C
-    cmdbResults.push([appDbMap[cmdbValue] || ""]); // Add corresponding value from App_DB Column A or leave blank
-  });
+  <p><strong>Application/CI Name:</strong> [App Name]</p>
+  <p><strong>CI ID:</strong> [CI ID]</p>
+  <p><strong>RITM:</strong> [RITM####]</p>
+  <p style="margin-bottom: 25px;"><strong>CI Class:</strong> [CI Class]</p>
 
-  // Write the results to Column A of CMDB ALL
-  cmdbSheet.getRange("A1:A" + cmdbColumnC.length).setValues(cmdbResults);
+  <hr style="border: 1px dashed #94969A;">
 
-  console.log("Script completed: CMDB ALL Column A updated.");
-}
+  <h3 style="color:#F44336; text-align:center;">Points of Contact for CI-Related SCTASK</h3>
+
+  <div style="border: 1px solid #94969A; padding:12px; border-radius:6px; background-color:#F9F9F9; margin-bottom:20px; color:#3B3C39; text-align:center;">
+    For any questions or support related to the areas below, please reach out to the respective contacts mentioned.
+  </div>
+
+  <ul style="list-style: none; padding-left: 0;">
+    <li><strong>Governance:</strong> )</li>
+    <li><strong>Risk/Regulatory:</strong> )</li>
+    <li><strong>Disaster Recovery:</strong> )</li>
+  </ul>
+</div>
