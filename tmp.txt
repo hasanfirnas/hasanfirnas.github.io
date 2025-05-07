@@ -13,7 +13,7 @@ Please visit the PCI portal using the link below to review and acknowledge the P
 [Access the PCI Portal]
 
 Your input is important and will help us maintain up-to-date compliance documentation.
-If you have any questions or face any issues, please reach out to the PCI team at [DLR-Team@yourcompany.com].
+If you have any questions or face any issues, please reach out to the PCI team at [].
 
 Thank you for your cooperation.
 
@@ -40,4 +40,4 @@ Please Note:
 	•	If you do not own a requirement, please identify the correct point of contact if known.
 	•	All responses will be recorded for compliance reporting. Changes later may require manual intervention, so we recommend confirming internally before submission.
 
-If you have any questions or run into any issues, contact the PCI team at [DLR-Team@yourcompany.com].
+If you have any questions or run into any issues, contact the PCI team at [].
