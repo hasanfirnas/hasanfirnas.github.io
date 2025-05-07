@@ -1,29 +1,43 @@
-<div style="font-family:Segoe UI, sans-serif; background-color:transparent; color:#3B3C39; padding:20px; border-radius:8px; line-height:1.6;">
+Email Draft
 
-  <h2 style="color:#FBC600; text-align:center;">CI Creation & Compliance Task Coordination</h2>
+Subject: Action Required: PSP Ownership Confirmation for PCI Assessment
 
-  <div style="border: 1px solid #94969A; padding:12px; border-radius:6px; background-color:#F9F9F9; margin-bottom:20px; color:#3B3C39; text-align:center;">
-    This chat has been created to assist with the creation of a new Configuration Item (CI). All relevant members from the application team have been added to this chat, along with the respective reviewers. If needed, the application team can add additional members.
-  </div>
+Hi [First Name],
 
-  <hr style="border: 1px dashed #94969A;">
+You are receiving this email because you are listed as the owner of one or more PSPs (Policies, Standards, and Procedures) in our records.
 
-  <p><strong>Application/CI Name:</strong> [App Name]</p>
-  <p><strong>CI ID:</strong> [CI ID]</p>
-  <p><strong>RITM:</strong> [RITM####]</p>
-  <p style="margin-bottom: 25px;"><strong>CI Class:</strong> [CI Class]</p>
+As part of our ongoing PCI assessment, we are required to confirm and update our PSP ownership matrix to ensure accurate accountability and compliance. This task supports the fulfillment of a PCI DSS requirement ([Requirement Number] — to be confirmed).
 
-  <hr style="border: 1px dashed #94969A;">
+Please visit the PCI portal using the link below to review and acknowledge the PSPs assigned to you.
 
-  <h3 style="color:#F44336; text-align:center;">Points of Contact for CI-Related SCTASK</h3>
+[Access the PCI Portal]
 
-  <div style="border: 1px solid #94969A; padding:12px; border-radius:6px; background-color:#F9F9F9; margin-bottom:20px; color:#3B3C39; text-align:center;">
-    For any questions or support related to the areas below, please reach out to the respective contacts mentioned.
-  </div>
+Your input is important and will help us maintain up-to-date compliance documentation.
+If you have any questions or face any issues, please reach out to the PCI team at [DLR-Team@yourcompany.com].
 
-  <ul style="list-style: none; padding-left: 0;">
-    <li><strong>Governance:</strong> )</li>
-    <li><strong>Risk/Regulatory:</strong> )</li>
-    <li><strong>Disaster Recovery:</strong> )</li>
-  </ul>
-</div>
+Thank you for your cooperation.
+
+Best regards,
+[Your Name]
+PCI Compliance Team
+
+⸻
+
+Welcome Page Text (on PCI Portal Landing Page)
+
+⸻
+
+Welcome to the PSP Ownership Confirmation Page
+
+As part of our PCI assessment, you’ve been identified as the owner of one or more PSPs (Policies, Standards, and Procedures).
+
+Click “Get Started” to review the PCI requirements mapped to you and confirm your ownership.
+
+⸻
+
+Please Note:
+	•	Review each requirement carefully and provide accurate information.
+	•	If you do not own a requirement, please identify the correct point of contact if known.
+	•	All responses will be recorded for compliance reporting. Changes later may require manual intervention, so we recommend confirming internally before submission.
+
+If you have any questions or run into any issues, contact the PCI team at [DLR-Team@yourcompany.com].
