@@ -1,43 +1,16 @@
-Email Draft
+Sub KeepOnlySpecificColumns()
+    Dim ws As Worksheet
+    Dim cell As Range
+    Dim i As Long
+    Dim columnsToKeep As Variant
 
-Subject: Action Required: PSP Ownership Confirmation for PCI Assessment
+    columnsToKeep = Array("uid", "nameFull", "jobTitle", "assignmentStatus", "mailAddress")
+    Set ws = ThisWorkbook.Sheets(1) ' Adjust if your target sheet is not the first one
 
-Hi [First Name],
-
-You are receiving this email because you are listed as the owner of one or more PSPs (Policies, Standards, and Procedures) in our records.
-
-As part of our ongoing PCI assessment, we are required to confirm and update our PSP ownership matrix to ensure accurate accountability and compliance. This task supports the fulfillment of a PCI DSS requirement ([Requirement Number] — to be confirmed).
-
-Please visit the PCI portal using the link below to review and acknowledge the PSPs assigned to you.
-
-[Access the PCI Portal]
-
-Your input is important and will help us maintain up-to-date compliance documentation.
-If you have any questions or face any issues, please reach out to the PCI team at [].
-
-Thank you for your cooperation.
-
-Best regards,
-[Your Name]
-PCI Compliance Team
-
-⸻
-
-Welcome Page Text (on PCI Portal Landing Page)
-
-⸻
-
-Welcome to the PSP Ownership Confirmation Page
-
-As part of our PCI assessment, you’ve been identified as the owner of one or more PSPs (Policies, Standards, and Procedures).
-
-Click “Get Started” to review the PCI requirements mapped to you and confirm your ownership.
-
-⸻
-
-Please Note:
-	•	Review each requirement carefully and provide accurate information.
-	•	If you do not own a requirement, please identify the correct point of contact if known.
-	•	All responses will be recorded for compliance reporting. Changes later may require manual intervention, so we recommend confirming internally before submission.
-
-If you have any questions or run into any issues, contact the PCI team at [].
+    ' Loop from last to first column
+    For i = ws.Cells(1, ws.Columns.Count).End(xlToLeft).Column To 1 Step -1
+        If IsError(Application.Match(ws.Cells(1, i).Value, columnsToKeep, 0)) Then
+            ws.Columns(i).Delete
+        End If
+    Next i
+End Sub
