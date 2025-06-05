@@ -1,19 +1,22 @@
 function main(workbook: ExcelScript.Workbook) {
   const sheet = workbook.getActiveWorksheet();
-
-  // List of column headers you want to KEEP
   const columnsToKeep = ["uid", "nameFull", "jobTitle", "assignmentStatus", "mailAddress"];
 
-  // Get the first row (header row)
-  const headerRow = sheet.getRange("1:1").getValues()[0];
+  const usedRange = sheet.getUsedRange();
+  if (!usedRange) {
+    console.log("No data found in sheet.");
+    return;
+  }
 
-  // Loop through header row from end to start to avoid index shifting when deleting
-  for (let col = headerRow.length - 1; col >= 0; col--) {
-    const header = headerRow[col];
+  const rowCount = usedRange.getRowCount();
+  const colCount = usedRange.getColumnCount();
+  const headerRow = usedRange.getValues()[0]; // first row of used range
 
-    // If header is NOT in the list to keep, delete the column
-    if (!columnsToKeep.includes(header as string)) {
-      sheet.getRangeByIndexes(0, col, sheet.getUsedRange().getRowCount(), 1).delete(ExcelScript.DeleteShiftDirection.left);
+  // Loop backwards through columns to avoid index shifting on deletion
+  for (let col = colCount - 1; col >= 0; col--) {
+    const header = headerRow[col] as string;
+    if (!columnsToKeep.includes(header)) {
+      sheet.getRangeByIndexes(0, col, rowCount, 1).delete(ExcelScript.DeleteShiftDirection.left);
     }
   }
 }
