@@ -2,21 +2,23 @@ function main(workbook: ExcelScript.Workbook) {
   const sheet = workbook.getActiveWorksheet();
   const columnsToKeep = ["uid", "nameFull", "jobTitle", "assignmentStatus", "mailAddress"];
 
-  const usedRange = sheet.getUsedRange();
+  let usedRange = sheet.getUsedRange();
   if (!usedRange) {
     console.log("No data found in sheet.");
     return;
   }
 
-  const rowCount = usedRange.getRowCount();
-  const colCount = usedRange.getColumnCount();
-  const headerRow = usedRange.getValues()[0]; // first row of used range
+  let data = usedRange.getValues();
+  let headerRow = data[0];
+  let totalRows = data.length;
 
-  // Loop backwards through columns to avoid index shifting on deletion
-  for (let col = colCount - 1; col >= 0; col--) {
-    const header = headerRow[col] as string;
+  // Loop backwards to avoid index shift on delete
+  for (let col = headerRow.length - 1; col >= 0; col--) {
+    let header = headerRow[col] as string;
+
     if (!columnsToKeep.includes(header)) {
-      sheet.getRangeByIndexes(0, col, rowCount, 1).delete(ExcelScript.DeleteShiftDirection.left);
+      // Delete this column
+      sheet.getRangeByIndexes(0, col, totalRows, 1).delete(ExcelScript.DeleteShiftDirection.left);
     }
   }
 }
