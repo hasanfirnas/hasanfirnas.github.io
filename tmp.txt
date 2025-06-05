@@ -1,16 +1,19 @@
-Sub KeepOnlySpecificColumns()
-    Dim ws As Worksheet
-    Dim cell As Range
-    Dim i As Long
-    Dim columnsToKeep As Variant
+function main(workbook: ExcelScript.Workbook) {
+  const sheet = workbook.getActiveWorksheet();
 
-    columnsToKeep = Array("uid", "nameFull", "jobTitle", "assignmentStatus", "mailAddress")
-    Set ws = ThisWorkbook.Sheets(1) ' Adjust if your target sheet is not the first one
+  // List of column headers you want to KEEP
+  const columnsToKeep = ["uid", "nameFull", "jobTitle", "assignmentStatus", "mailAddress"];
 
-    ' Loop from last to first column
-    For i = ws.Cells(1, ws.Columns.Count).End(xlToLeft).Column To 1 Step -1
-        If IsError(Application.Match(ws.Cells(1, i).Value, columnsToKeep, 0)) Then
-            ws.Columns(i).Delete
-        End If
-    Next i
-End Sub
+  // Get the first row (header row)
+  const headerRow = sheet.getRange("1:1").getValues()[0];
+
+  // Loop through header row from end to start to avoid index shifting when deleting
+  for (let col = headerRow.length - 1; col >= 0; col--) {
+    const header = headerRow[col];
+
+    // If header is NOT in the list to keep, delete the column
+    if (!columnsToKeep.includes(header as string)) {
+      sheet.getRangeByIndexes(0, col, sheet.getUsedRange().getRowCount(), 1).delete(ExcelScript.DeleteShiftDirection.left);
+    }
+  }
+}
