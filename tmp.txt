@@ -51,3 +51,60 @@
     </div>
   </body>
 </html>
+
+
+
+
+======================
+
+
+<html>
+  <body style="font-family:'Segoe UI', sans-serif; background-color:#ffffff; color:#333; margin:0; padding:0;">
+
+    <!-- BANNER SECTION -->
+    <div style="background-color:#f2f2f2; padding:16px 24px; border-radius:8px 8px 0 0; border-bottom:1px solid #ccc;">
+      <div style="font-size:12px; text-transform:uppercase; color:#666; letter-spacing:1px; margin-bottom:2px;">
+        A MESSAGE FROM
+      </div>
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div style="font-size:20px; font-weight:bold; color:#222;">PCI Governance Team</div>
+        <div style="font-size:14px; color:#666; font-style:italic;">SYNCHRONY</div>
+      </div>
+    </div>
+
+    <!-- EMAIL BODY -->
+    <div style="padding:24px; font-size:15px; line-height:1.6;">
+      <p>Hi Team,</p>
+
+      <p>
+        You are receiving this email because you are listed as part of the application team for a <strong>PCI-relevant application</strong>.
+        This application is <strong>in scope for the upcoming PCI assessment</strong>. It is important to ensure that all required controls are implemented and compliant with <strong>PCI DSS standards</strong>.
+      </p>
+
+      <p>
+        <strong>Application Name:</strong> {{ApplicationName}}<br>
+        <strong>CI ID:</strong> {{CIID}}
+      </p>
+
+      <!-- ACTION ITEMS -->
+      <div style="background-color:#f9f9f9; border-left:4px solid #0078D4; padding:12px 18px; margin:20px 0; border-radius:6px;">
+        <p style="margin:0 0 8px;"><strong>✅ What to do now:</strong></p>
+        <ul style="padding-left:20px; margin:0;">
+          <li>📄 Review the attached PPT and begin gathering the required onboarding evidence.</li>
+          <li>🕒 Get the evidence reviewed by the ISA Team (PCI Team) <strong>before the assessment begins</strong>.</li>
+        </ul>
+      </div>
+
+      <p>If you have any questions or would like support, feel free to reply or <strong>set up a call</strong> with the PCI team.</p>
+
+      <!-- FOOTER -->
+      <div style="font-size:13px; color:#888; margin-top:30px; padding-top:10px; border-top:1px solid #eee;">
+        <p><em>📅 This is a monthly reminder email.</em><br>
+        If you’ve already completed the onboarding and evidence preparation, please notify the PCI team for a quick review. Otherwise, we strongly encourage starting the process as early as possible to avoid last-minute issues.</p>
+
+        <p>Thank you,<br>
+        <strong>PCI Assessment Team</strong></p>
+      </div>
+    </div>
+  </body>
+</html>
