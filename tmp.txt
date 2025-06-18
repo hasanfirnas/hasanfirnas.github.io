@@ -1,24 +1,53 @@
-function main(workbook: ExcelScript.Workbook) {
-  const sheet = workbook.getActiveWorksheet();
-  const columnsToKeep = ["uid", "nameFull", "jobTitle", "assignmentStatus", "mailAddress"];
+<html>
+  <body style="background-color:#ffffff; margin:0; padding:0; font-family:'Segoe UI', sans-serif;">
 
-  let usedRange = sheet.getUsedRange();
-  if (!usedRange) {
-    console.log("No data found in sheet.");
-    return;
-  }
+    <!-- OUTER WRAPPER TO CENTER EVERYTHING -->
+    <div style="max-width:620px; margin:40px auto; border:1px solid #eee; border-radius:8px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,0.05);">
 
-  let data = usedRange.getValues();
-  let headerRow = data[0];
-  let totalRows = data.length;
+      <!-- BANNER -->
+      <div style="background-color:#f2f2f2; padding:16px 24px;">
+        <div style="font-size:12px; text-transform:uppercase; color:#666; letter-spacing:1px; margin-bottom:2px;">
+          A MESSAGE FROM
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div style="font-size:20px; color:#222;">PCI Governance Team</div>
+          <div style="font-size:14px; color:#666; font-style:italic;">SYNCHRONY</div>
+        </div>
+      </div>
 
-  // Loop backwards to avoid index shift on delete
-  for (let col = headerRow.length - 1; col >= 0; col--) {
-    let header = headerRow[col] as string;
+      <!-- BODY -->
+      <div style="padding:24px; font-size:15px; line-height:1.7; color:#333;">
+        <p>Hi Team,</p>
 
-    if (!columnsToKeep.includes(header)) {
-      // Delete this column
-      sheet.getRangeByIndexes(0, col, totalRows, 1).delete(ExcelScript.DeleteShiftDirection.left);
-    }
-  }
-}
+        <p>
+          You are receiving this email because you are listed as part of the application team for a PCI-relevant application. 
+          This application is in scope for the upcoming PCI assessment. It is important to ensure that all required controls are implemented and aligned with PCI DSS standards.
+        </p>
+
+        <!-- APP NAME + CI ID BOX -->
+        <div style="margin:20px 0; padding:14px 18px; background-color:#f9f9f9; border:1px solid #ddd; border-radius:6px;">
+          <p style="margin:0;"><span style="font-weight:600;">Application Name:</span> {{ApplicationName}}</p>
+          <p style="margin:4px 0 0;"><span style="font-weight:600;">CI ID:</span> {{CIID}}</p>
+        </div>
+
+        <!-- WHAT TO DO NOW -->
+        <p style="margin-top:30px; font-weight:600;">What to do now:</p>
+        <ul style="padding-left:20px; margin-top:8px;">
+          <li>Review the attached PPT and begin gathering the required onboarding evidence.</li>
+          <li>Get the evidence reviewed by the ISA Team (PCI Team) before the assessment begins.</li>
+        </ul>
+
+        <p>If you have any questions or would like support, feel free to reply or set up a call with the PCI team.</p>
+
+        <!-- FOOTER REMINDER -->
+        <div style="font-size:13px; color:#888; margin-top:30px; padding-top:10px; border-top:1px solid #eee;">
+          <p>This is a monthly reminder email.<br>
+          If you’ve already completed the onboarding and evidence preparation, please notify the PCI team for a quick review. Otherwise, we strongly encourage starting the process early to avoid last-minute issues.</p>
+
+          <p style="margin-top:20px;">Thank you,<br>
+          PCI Assessment Team</p>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
