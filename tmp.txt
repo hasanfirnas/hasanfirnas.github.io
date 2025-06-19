@@ -108,3 +108,65 @@
     </div>
   </body>
 </html>
+
+
+=================================
+
+
+<html>
+  <body style="margin:0; padding:0; font-family:'Segoe UI', sans-serif; background:#fff;">
+    <table align="center" width="600" cellpadding="0" cellspacing="0" style="border:1px solid #eee; border-radius:8px; overflow:hidden;">
+      
+      <!-- Banner -->
+      <tr style="background:#f2f2f2;">
+        <td style="padding:12px 16px; font-size:12px; text-transform:uppercase; color:#666; letter-spacing:1px;">A MESSAGE FROM</td>
+        <td style="padding:12px 16px;"></td>
+        <td style="padding:12px 16px;"></td>
+        <td style="padding:12px 16px; text-align:right; font-size:14px; color:#666; font-style:italic;">SYNCHRONY</td>
+      </tr>
+      <tr style="background:#f2f2f2;">
+        <td colspan="2" style="padding:4px 16px; font-size:20px; color:#222;">PCI Governance Team</td>
+        <td colspan="2"></td>
+      </tr>
+
+      <!-- Body -->
+      <tr>
+        <td colspan="4" style="padding:24px; font-size:15px; line-height:1.6; color:#333;">
+          <p>Hi Team,</p>
+          <p>
+            You are receiving this email because you are listed as part of the application team for a PCI-relevant application.
+            This application is in scope for the upcoming PCI assessment. It is important to ensure that all required controls are implemented and aligned with PCI DSS standards.
+          </p>
+
+          <!-- Application Box -->
+          <table width="100%" cellpadding="8" cellspacing="0" style="background:#f9f9f9; border:1px solid #ddd; border-radius:6px;">
+            <tr>
+              <td style="font-weight:600;">Application Name:</td>
+              <td>{{ApplicationName}}</td>
+            </tr>
+            <tr>
+              <td style="font-weight:600;">CI ID:</td>
+              <td>{{CIID}}</td>
+            </tr>
+          </table>
+
+          <p style="margin-top:24px; font-weight:600;">What to do now:</p>
+          <ul style="padding-left:20px; margin-top:8px;">
+            <li>Review the attached PPT and begin gathering the required onboarding evidence.</li>
+            <li>Get the evidence reviewed by the ISA Team (PCI Team) before the assessment begins.</li>
+          </ul>
+
+          <p>If you have any questions or would like support, feel free to reply or set up a call with the PCI team.</p>
+
+          <!-- Footer -->
+          <div style="font-size:13px; color:#888; margin-top:30px; border-top:1px solid #eee; padding-top:10px;">
+            <p>This is a monthly reminder email.<br>
+            If you’ve already completed the onboarding and evidence preparation, please notify the PCI team for a quick review. Otherwise, we strongly encourage starting the process early to avoid last-minute issues.</p>
+            <p>Thank you,<br>PCI Assessment Team</p>
+          </div>
+        </td>
+      </tr>
+
+    </table>
+  </body>
+</html>
