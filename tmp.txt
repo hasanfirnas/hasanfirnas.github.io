@@ -170,3 +170,71 @@
     </table>
   </body>
 </html>
+
+
+============================
+
+<html>
+  <body style="background-color:#ffffff; margin:0; padding:0; font-family:'Segoe UI', sans-serif;">
+    <table align="center" width="615" cellpadding="0" cellspacing="0" style="border:1px solid #ddd; border-radius:10px; overflow:hidden;">
+
+      <!-- BANNER -->
+      <tr style="background:#f5f5f5;">
+        <!-- Left-aligned message -->
+        <td style="padding:16px 20px; vertical-align:top;">
+          <div style="font-size:12px; text-transform:uppercase; color:#666; letter-spacing:1px; margin-bottom:4px;">
+            A MESSAGE FROM
+          </div>
+          <div style="font-size:20px; color:#222;">
+            PCI Governance Team
+          </div>
+        </td>
+
+        <!-- Logo aligned right and vertically centered -->
+        <td style="padding:10px 20px; text-align:right; vertical-align:middle;">
+          <img src="data:image/png;base64,YOUR_BASE64_LOGO" alt="Synchrony" style="max-height:36px; max-width:100px; display:block;" />
+        </td>
+      </tr>
+
+      <!-- BODY CONTENT -->
+      <tr>
+        <td colspan="2" style="padding:24px; font-size:15px; line-height:1.6; color:#333;">
+          <p>Hi Team,</p>
+          <p>
+            You are receiving this email because you are listed as part of the application team for a PCI-relevant application. 
+            This application is in scope for the upcoming PCI assessment. It is important to ensure that all required controls are implemented and aligned with PCI DSS standards.
+          </p>
+
+          <!-- Sleek Application Info Box -->
+          <table width="100%" cellpadding="8" cellspacing="0" style="background:#f7f9fc; border:1px solid #ccd4dc; border-radius:6px; margin-top:20px; font-size:14px;">
+            <tr>
+              <td style="font-weight:600; width:150px;">Application Name:</td>
+              <td>{{ApplicationName}}</td>
+            </tr>
+            <tr>
+              <td style="font-weight:600;">CI ID:</td>
+              <td>{{CIID}}</td>
+            </tr>
+          </table>
+
+          <p style="margin-top:24px; font-weight:600;">What to do now:</p>
+          <ul style="padding-left:20px; margin-top:8px;">
+            <li>Review the attached PPT and begin gathering the required onboarding evidence.</li>
+            <li>Get the evidence reviewed by the ISA Team (PCI Team) before the assessment begins.</li>
+          </ul>
+
+          <p>If you have any questions or would like support, feel free to reply or set up a call with the PCI team.</p>
+
+          <!-- Footer Reminder -->
+          <div style="font-size:13px; color:#888; margin-top:30px; padding-top:10px; border-top:1px solid #eee;">
+            <div style="background-color:#f9f9f9; border-left:2px solid #0078D4; padding:6px 12px; margin:10px 0; border-radius:6px;">
+              <p style="margin:0;"><small><em>This is a monthly reminder email. If you've already completed the onboarding and evidence preparation, please notify the PCI team for a quick review. Otherwise, we strongly encourage starting the process early to avoid last-minute issues.</em></small></p>
+            </div>
+            <p style="margin-top:20px;">Thank you,<br>
+            PCI Assessment Team</p>
+          </div>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
