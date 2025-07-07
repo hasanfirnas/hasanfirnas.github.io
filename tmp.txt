@@ -1,42 +1,44 @@
 function main(workbook: ExcelScript.Workbook, combinedInput: string) {
-  const [RITM, latestID] = combinedInput.split(",");
+  const [RITM, latestID] = combinedInput.split(",").map(x => x.trim());
 
-  const sheet = workbook.getWorksheet("Sheet1"); // Adjust if needed
-  const table = sheet.getTable("Table1");        // Adjust if needed
-
+  const sheet = workbook.getWorksheet("Sheet1"); // Change if needed
+  const table = sheet.getTable("OfficeForm.Table");
   const headers = table.getHeaderRowRange().getValues()[0];
   const values = table.getRangeBetweenHeaderAndTotal().getValues();
-  const formats = table.getRangeBetweenHeaderAndTotal().getFormat();
 
-  const ritmColIndex = headers.indexOf("RITM");
   const idColIndex = headers.indexOf("ID");
+  if (idColIndex === -1) {
+    throw new Error("ID column not found.");
+  }
 
-  let matchingRows: number[] = [];
+  let matchingRowIndexes: number[] = [];
 
+  // Go through each row
   for (let i = 0; i < values.length; i++) {
-    if (values[i][ritmColIndex]?.toString().trim() === RITM) {
-      matchingRows.push(i);
+    const row = values[i];
+    const containsRITM = row.some(cell => cell?.toString().trim() === RITM);
+
+    if (containsRITM) {
+      matchingRowIndexes.push(i);
     }
   }
 
-  if (matchingRows.length <= 1) return;
+  // If only 1 row with RITM, do nothing
+  if (matchingRowIndexes.length <= 1) return;
 
-  for (let rowIndex of matchingRows) {
-    const rowID = values[rowIndex][idColIndex]?.toString().trim();
-    if (rowID !== latestID) {
-      const fullRow = table.getRangeBetweenHeaderAndTotal().getCell(rowIndex, 0).getEntireRow();
-      fullRow.getFormat().getFont().setStrikethrough(true);
-      fullRow.getFormat().getFill().setColor("#FF9999"); // Light red
+  const idCol = table.getDataBodyRange().getColumn(idColIndex).getValues().map(r => r[0].toString());
+
+  for (let i of matchingRowIndexes) {
+    const currentID = idCol[i];
+
+    if (currentID === latestID) {
+      // Skip the latest row
+      continue;
     }
-  }
-}
 
-
-
-function main(workbook: ExcelScript.Workbook) {
-  const sheet = workbook.getActiveWorksheet();
-  const tables = sheet.getTables();
-  for (let t of tables) {
-    console.log(t.getName());
+    // Apply red fill and strikethrough
+    const rowRange = table.getDataBodyRange().getRows()[i];
+    rowRange.getFormat().getFont().setStrikethrough(true);
+    rowRange.getFormat().getFill().setColor("red");
   }
 }
