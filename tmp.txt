@@ -3,41 +3,32 @@ function main(workbook: ExcelScript.Workbook, combinedInput: string) {
 
   const sheet = workbook.getWorksheet("Sheet1"); // Change if needed
   const table = sheet.getTable("OfficeForm.Table");
-  const headers = table.getHeaderRowRange().getValues()[0];
-  const values = table.getRangeBetweenHeaderAndTotal().getValues();
+  const headers: string[] = table.getHeaderRowRange().getValues()[0] as string[][];
+  const values: (string | number | boolean)[][] = table.getRangeBetweenHeaderAndTotal().getValues();
 
-  const idColIndex = headers.indexOf("ID");
-  if (idColIndex === -1) {
-    throw new Error("ID column not found.");
-  }
+  const idColIndex: number = headers.indexOf("ID");
+  if (idColIndex === -1) throw new Error("ID column not found.");
 
   let matchingRowIndexes: number[] = [];
 
-  // Go through each row
   for (let i = 0; i < values.length; i++) {
     const row = values[i];
-    const containsRITM = row.some(cell => cell?.toString().trim() === RITM);
-
+    let containsRITM: boolean = row.some(cell => cell?.toString().trim() === RITM);
     if (containsRITM) {
       matchingRowIndexes.push(i);
     }
   }
 
-  // If only 1 row with RITM, do nothing
   if (matchingRowIndexes.length <= 1) return;
 
   const idCol = table.getDataBodyRange().getColumn(idColIndex).getValues().map(r => r[0].toString());
 
   for (let i of matchingRowIndexes) {
-    const currentID = idCol[i];
+    const currentID: string = idCol[i];
 
-    if (currentID === latestID) {
-      // Skip the latest row
-      continue;
-    }
+    if (currentID === latestID) continue;
 
-    // Apply red fill and strikethrough
-    const rowRange = table.getDataBodyRange().getRows()[i];
+    const rowRange: ExcelScript.Range = table.getDataBodyRange().getRows()[i];
     rowRange.getFormat().getFont().setStrikethrough(true);
     rowRange.getFormat().getFill().setColor("red");
   }
