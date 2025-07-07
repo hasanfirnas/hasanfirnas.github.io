@@ -1,42 +1,36 @@
 function main(workbook: ExcelScript.Workbook, combinedInput: string) {
-  // 1) Parse inputs
-  const parts: string[] = combinedInput.split(",").map(x => x.trim());
-  const RITM: string = parts[0];
-  const latestID: string = parts[1];
+  // 1. Parse the input string
+  const [RITM, latestID] = combinedInput.split(",").map(x => x.trim());
 
-  // 2) Grab your sheet & table
-  const sheet = workbook.getWorksheet("Sheet1"); // <- update if needed
-  const table = sheet.getTable("OfficeForm.Table"); // <- double-check spelling
+  // 2. Access the sheet and table
+  const sheet = workbook.getWorksheet("Sheet1"); // Change if needed
+  const table = sheet.getTable("OfficeForms.Table"); // Your table name
 
-  // 3) Find the ID column index
-  const headerRange = table.getHeaderRowRange();
-  const headers: string[] = headerRange.getValues()[0] as string[];
-  const idColIndex: number = headers.indexOf("id"); // <- case-sensitive
-  if (idColIndex < 0) throw new Error("Couldn't find an 'id' column.");
+  // 3. Get header values to find column indexes
+  const headers = table.getHeaderRowRange().getValues()[0] as string[];
 
-  // 4) Read all data rows
-  const dataRange: ExcelScript.Range = table.getRangeBetweenHeaderAndTotal();
-  const allValues: (string | number | boolean)[][] = dataRange.getValues();
+  const idColIndex = headers.indexOf("ID");
+  if (idColIndex < 0) throw new Error("Couldn't find 'ID' column.");
 
-  // 5) Collect rows *containing* our RITM anywhere
-  const matchingRowIndexes: number[] = [];
-  for (let i = 0; i < allValues.length; i++) {
-    const row = allValues[i];
-    const containsRITM = row.some(cell => cell.toString().trim() === RITM);
-    if (containsRITM) matchingRowIndexes.push(i);
-  }
+  // 4. Read all rows
+  const rows = table.getRangeBetweenHeaderAndTotal().getValues();
 
-  // 6) If only 1 match, do nothing
-  if (matchingRowIndexes.length <= 1) return;
+  // 5. Loop through rows to find matching RITM, skip the latestID row, and stop after finding it
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    const idValue = row[idColIndex]?.toString().trim();
 
-  // 7) Strike out and red-highlight all except the latest ID
-  for (let i = 0; i < matchingRowIndexes.length; i++) {
-    const rowIndex = matchingRowIndexes[i];
-    const currentID = allValues[rowIndex][idColIndex].toString();
-    if (currentID === latestID) continue;
-
-    const rowRange = dataRange.getCell(rowIndex, 0).getEntireRow();
-    rowRange.getFormat().getFont().setColor("red");
-    rowRange.getFormat().setStrikethrough(true);
+    const containsRITM = row.some(cell => cell?.toString().includes(RITM));
+    if (containsRITM) {
+      if (idValue === latestID) {
+        // Found the latest row; stop after this
+        break;
+      } else {
+        // Strike and red-fill
+        const range = table.getRangeBetweenHeaderAndTotal().getCell(i, 0).getEntireRow();
+        range.getFormat().getFont().setColor("red");
+        range.getFormat().setFontStrikethrough(true);
+      }
+    }
   }
 }
