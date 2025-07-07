@@ -30,3 +30,13 @@ function main(workbook: ExcelScript.Workbook, combinedInput: string) {
     }
   }
 }
+
+
+
+function main(workbook: ExcelScript.Workbook) {
+  const sheet = workbook.getActiveWorksheet();
+  const tables = sheet.getTables();
+  for (let t of tables) {
+    console.log(t.getName());
+  }
+}
