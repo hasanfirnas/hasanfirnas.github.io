@@ -1,35 +1,51 @@
 function main(workbook: ExcelScript.Workbook, combinedInput: string) {
-  const [RITM, latestID] = combinedInput.split(",").map(x => x.trim());
+  // 1) Parse inputs
+  const parts: string[] = combinedInput.split(",").map(x => x.trim());
+  const RITM: string = parts[0];
+  const latestID: string = parts[1];
 
-  const sheet = workbook.getWorksheet("Sheet1"); // Change if needed
-  const table = sheet.getTable("OfficeForm.Table");
-  const headers: string[] = table.getHeaderRowRange().getValues()[0] as string[][];
-  const values: (string | number | boolean)[][] = table.getRangeBetweenHeaderAndTotal().getValues();
+  // 2) Grab your sheet & table
+  const sheet = workbook.getWorksheet("Sheet1");       // ← update if your sheet name differs
+  const table = sheet.getTable("OfficeForm.Table");    // ← your exact table name
 
+  // 3) Find the ID column index
+  const headerRange = table.getHeaderRowRange();
+  const headers: string[] = headerRange.getValues()[0] as string[];
   const idColIndex: number = headers.indexOf("ID");
-  if (idColIndex === -1) throw new Error("ID column not found.");
+  if (idColIndex < 0) throw new Error("Couldn’t find an 'ID' column.");
 
-  let matchingRowIndexes: number[] = [];
+  // 4) Read all data rows
+  const dataBodyRange: ExcelScript.Range = table.getDataBodyRange();
+  const allValues: (string|number|boolean)[][] = dataBodyRange.getValues();
 
-  for (let i = 0; i < values.length; i++) {
-    const row = values[i];
-    let containsRITM: boolean = row.some(cell => cell?.toString().trim() === RITM);
-    if (containsRITM) {
-      matchingRowIndexes.push(i);
-    }
+  // 5) Collect rows *containing* our RITM anywhere
+  const matchingRowIndexes: number[] = [];
+  for (let i = 0; i < allValues.length; i++) {
+    const row = allValues[i];
+    const containsRitm: boolean = row.some(cell => cell?.toString().trim() === RITM);
+    if (containsRitm) matchingRowIndexes.push(i);
   }
 
+  // 6) If only one match, stop
   if (matchingRowIndexes.length <= 1) return;
 
-  const idCol = table.getDataBodyRange().getColumn(idColIndex).getValues().map(r => r[0].toString());
+  // 7) Pull the ID column values as strings
+  const idColValues: string[] = dataBodyRange
+    .getColumn(idColIndex)
+    .getValues()
+    .map((r: (string|number|boolean)[]) => r[0].toString());
 
-  for (let i of matchingRowIndexes) {
-    const currentID: string = idCol[i];
-
+  // 8) For each matching row index:
+  for (const rowIndex of matchingRowIndexes) {
+    const currentID: string = idColValues[rowIndex];
+    // → skip the latest
     if (currentID === latestID) continue;
 
-    const rowRange: ExcelScript.Range = table.getDataBodyRange().getRows()[i];
-    rowRange.getFormat().getFont().setStrikethrough(true);
-    rowRange.getFormat().getFill().setColor("red");
+    // → strike + red-fill
+    const fullRow: ExcelScript.Range = dataBodyRange
+      .getCell(rowIndex, 0)
+      .getEntireRow();
+    fullRow.getFormat().getFont().setStrikethrough(true);
+    fullRow.getFormat().getFill().setColor("red");
   }
 }
