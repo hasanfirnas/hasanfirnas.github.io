@@ -5,47 +5,38 @@ function main(workbook: ExcelScript.Workbook, combinedInput: string) {
   const latestID: string = parts[1];
 
   // 2) Grab your sheet & table
-  const sheet = workbook.getWorksheet("Sheet1");       // ← update if your sheet name differs
-  const table = sheet.getTable("OfficeForm.Table");    // ← your exact table name
+  const sheet = workbook.getWorksheet("Sheet1"); // <- update if needed
+  const table = sheet.getTable("OfficeForm.Table"); // <- double-check spelling
 
   // 3) Find the ID column index
   const headerRange = table.getHeaderRowRange();
   const headers: string[] = headerRange.getValues()[0] as string[];
-  const idColIndex: number = headers.indexOf("ID");
-  if (idColIndex < 0) throw new Error("Couldn’t find an 'ID' column.");
+  const idColIndex: number = headers.indexOf("id"); // <- case-sensitive
+  if (idColIndex < 0) throw new Error("Couldn't find an 'id' column.");
 
   // 4) Read all data rows
-  const dataBodyRange: ExcelScript.Range = table.getDataBodyRange();
-  const allValues: (string|number|boolean)[][] = dataBodyRange.getValues();
+  const dataRange: ExcelScript.Range = table.getRangeBetweenHeaderAndTotal();
+  const allValues: (string | number | boolean)[][] = dataRange.getValues();
 
   // 5) Collect rows *containing* our RITM anywhere
   const matchingRowIndexes: number[] = [];
   for (let i = 0; i < allValues.length; i++) {
     const row = allValues[i];
-    const containsRitm: boolean = row.some(cell => cell?.toString().trim() === RITM);
-    if (containsRitm) matchingRowIndexes.push(i);
+    const containsRITM = row.some(cell => cell.toString().trim() === RITM);
+    if (containsRITM) matchingRowIndexes.push(i);
   }
 
-  // 6) If only one match, stop
+  // 6) If only 1 match, do nothing
   if (matchingRowIndexes.length <= 1) return;
 
-  // 7) Pull the ID column values as strings
-  const idColValues: string[] = dataBodyRange
-    .getColumn(idColIndex)
-    .getValues()
-    .map((r: (string|number|boolean)[]) => r[0].toString());
-
-  // 8) For each matching row index:
-  for (const rowIndex of matchingRowIndexes) {
-    const currentID: string = idColValues[rowIndex];
-    // → skip the latest
+  // 7) Strike out and red-highlight all except the latest ID
+  for (let i = 0; i < matchingRowIndexes.length; i++) {
+    const rowIndex = matchingRowIndexes[i];
+    const currentID = allValues[rowIndex][idColIndex].toString();
     if (currentID === latestID) continue;
 
-    // → strike + red-fill
-    const fullRow: ExcelScript.Range = dataBodyRange
-      .getCell(rowIndex, 0)
-      .getEntireRow();
-    fullRow.getFormat().getFont().setStrikethrough(true);
-    fullRow.getFormat().getFill().setColor("red");
+    const rowRange = dataRange.getCell(rowIndex, 0).getEntireRow();
+    rowRange.getFormat().getFont().setColor("red");
+    rowRange.getFormat().setStrikethrough(true);
   }
 }
