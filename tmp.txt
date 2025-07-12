@@ -1,36 +1,5 @@
-function main(workbook: ExcelScript.Workbook, combinedInput: string) {
-  // 1. Parse the input string
-  const [RITM, latestID] = combinedInput.split(",").map(x => x.trim());
-
-  // 2. Access the sheet and table
-  const sheet = workbook.getWorksheet("Sheet1"); // Change if needed
-  const table = sheet.getTable("OfficeForms.Table"); // Your table name
-
-  // 3. Get header values to find column indexes
-  const headers = table.getHeaderRowRange().getValues()[0] as string[];
-
-  const idColIndex = headers.indexOf("ID");
-  if (idColIndex < 0) throw new Error("Couldn't find 'ID' column.");
-
-  // 4. Read all rows
-  const rows = table.getRangeBetweenHeaderAndTotal().getValues();
-
-  // 5. Loop through rows to find matching RITM, skip the latestID row, and stop after finding it
-  for (let i = 0; i < rows.length; i++) {
-    const row = rows[i];
-    const idValue = row[idColIndex]?.toString().trim();
-
-    const containsRITM = row.some(cell => cell?.toString().includes(RITM));
-    if (containsRITM) {
-      if (idValue === latestID) {
-        // Found the latest row; stop after this
-        break;
-      } else {
-        // Strike and red-fill
-        const range = table.getRangeBetweenHeaderAndTotal().getCell(i, 0).getEntireRow();
-        range.getFormat().getFont().setColor("red");
-        range.getFormat().setFontStrikethrough(true);
-      }
-    }
-  }
+function main(workbook: ExcelScript.Workbook) {
+  // This just gets the sheet by exact name and activates it
+  const sheet = workbook.getWorksheet("Sheet1");
+  sheet.activate();
 }
