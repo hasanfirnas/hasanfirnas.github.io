@@ -58,3 +58,71 @@ function main(workbook: ExcelScript.Workbook) {
     }
   }
 }
+
+
+
+function main(workbook: ExcelScript.Workbook) {
+  // Get references to the two worksheets
+  const sheet1 = workbook.getWorksheet("Sheet1");
+  const outputSheet = workbook.getWorksheet("Output");
+
+  // Get all data from both sheets
+  const sheet1Data = sheet1.getUsedRange().getValues();
+  const outputData = outputSheet.getUsedRange().getValues();
+
+  // Get headers
+  const sheet1Headers = sheet1Data[0];
+  const outputHeaders = outputData[0];
+
+  // Get the index of the ID column in both sheets
+  const idColIndex_Sheet1 = sheet1Headers.indexOf("Id");
+  const idColIndex_Output = outputHeaders.indexOf("Id");
+
+  // Target headers to sync
+  const columnsToMap = [
+    "OUTPUT - PCI",
+    "OUTPUT - PCI Cat",
+    "OUTPUT - System-Generated Data Classification",
+    "OUTPUT - App Team Suggested Data Classification"
+  ];
+
+  // Get column indices for both sheets
+  const targetIndices_Sheet1 = columnsToMap.map(header => sheet1Headers.indexOf(header));
+  const targetIndices_Output = columnsToMap.map(header => outputHeaders.indexOf(header));
+
+  // Loop through each row in Output sheet (starting after header)
+  for (let i = 1; i < outputData.length; i++) {
+    const outputRow = outputData[i];
+    const outputId = outputRow[idColIndex_Output];
+
+    if (!outputId) continue; // Skip empty IDs
+
+    // Find matching row in Sheet1 by ID
+    const matchingRowIndex_Sheet1 = sheet1Data.findIndex((row, idx) =>
+      idx !== 0 && row[idColIndex_Sheet1] === outputId
+    );
+
+    if (matchingRowIndex_Sheet1 === -1) continue; // No match found — skip
+
+    // Go column by column for the matching row
+    for (let j = 0; j < columnsToMap.length; j++) {
+      const colIndex_Sheet1 = targetIndices_Sheet1[j];
+      const colIndex_Output = targetIndices_Output[j];
+
+      const existingValue = sheet1Data[matchingRowIndex_Sheet1][colIndex_Sheet1];
+
+      // Only update if the cell in Sheet1 is empty
+      if (existingValue === "" || existingValue === null) {
+        let valueToCopy = outputRow[colIndex_Output];
+
+        // If the current column is "OUTPUT - System-Generated Data Classification", clean \r
+        if (columnsToMap[j] === "OUTPUT - System-Generated Data Classification" && typeof valueToCopy === "string") {
+          valueToCopy = valueToCopy.replace(/\r/g, " ");
+        }
+
+        // Set the cleaned or original value
+        sheet1.getCell(matchingRowIndex_Sheet1, colIndex_Sheet1).setValue(valueToCopy);
+      }
+    }
+  }
+}
