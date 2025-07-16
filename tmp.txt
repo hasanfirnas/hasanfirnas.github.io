@@ -1,5 +1,5 @@
 function main(workbook: ExcelScript.Workbook) {
-  const table = workbook.getWorksheet("Sheet1").getTable("OfficeForm.Table");
+  const table = workbook.getWorksheet("Sheet1").getTable("OfficeForms.Table");
 
   // Get headers and data
   const headers = table.getHeaderRowRange().getValues()[0] as string[];
@@ -28,7 +28,18 @@ function main(workbook: ExcelScript.Workbook) {
   });
 
   if (ritmColIndex === -1) throw new Error("No RITM column detected.");
-  console.log(`✅ RITM column detected: ${String.fromCharCode(65 + ritmColIndex)} (${headers[ritmColIndex]})`);
+  // console.log(`✅ RITM column detected: ${String.fromCharCode(65 + ritmColIndex)} (${headers[ritmColIndex]})`);
+
+  // ✅ STEP 1.5: Clean RITM column values in Excel (trim leading/trailing spaces)
+  for (let i = 0; i < data.length; i++) {
+    const cellValue = data[i][ritmColIndex];
+    if (typeof cellValue === "string") {
+      const trimmed = cellValue.trim();
+      if (cellValue !== trimmed) {
+        dataRange.getCell(i, ritmColIndex).setValue(trimmed); // ✅ Update Excel cell in-place
+      }
+    }
+  }
 
   // STEP 2: Group rows by RITM
   const ritmGroups: Record<string, { rowIndex: number, id: number }[]> = {};
@@ -55,21 +66,21 @@ function main(workbook: ExcelScript.Workbook) {
     entries.sort((a, b) => a.id - b.id);
     const keeper = entries[entries.length - 1]; // Max ID is kept
 
-    console.log(`\n🔍 RITM: ${ritm}`);
-    console.log(`➡️ Keeping ID: ${keeper.id} (Row ${keeper.rowIndex + 2})`);
-    console.log(`🗑️ Marking these for strikethrough:`);
+    // console.log(`\n🔍 RITM: ${ritm}`);
+    // console.log(`➡️ Keeping ID: ${keeper.id} (Row ${keeper.rowIndex + 2})`);
+    // console.log(`🗑️ Marking these for strikethrough:`);
 
     for (let entry of entries) {
       if (entry.id !== keeper.id) {
-        console.log(`  - ID: ${entry.id} (Row ${entry.rowIndex + 2})`);
-        
+        // console.log(`  - ID: ${entry.id} (Row ${entry.rowIndex + 2})`);
+
         // Commented action line — uncomment once you're confident
-        // const rowRange = dataRange.getCell(entry.rowIndex, 0).getEntireRow();
-        // rowRange.getFormat().getFont().setColor("red");
-        // rowRange.getFormat().setStrikethrough(true);
+        const rowRange = dataRange.getRow(entry.rowIndex);
+        rowRange.getFormat().getFill().setColor("red");
+        rowRange.getFormat().getFont().setStrikethrough(true);
       }
     }
   }
 
-  console.log(`\n✅ Debug pass complete. No changes applied — strike/highlight lines are commented out.`);
+  // console.log(`\n✅ Debug pass complete. No changes applied — strike/highlight lines are commented out.`);
 }
