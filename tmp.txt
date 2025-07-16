@@ -1,128 +1,75 @@
 function main(workbook: ExcelScript.Workbook) {
-  // Get references to the two worksheets
-  const sheet1 = workbook.getWorksheet("Sheet1");
-  const outputSheet = workbook.getWorksheet("Output");
+  const table = workbook.getWorksheet("Sheet1").getTable("OfficeForm.Table");
 
-  // Get all data from both sheets as 2D arrays
-  const sheet1Data = sheet1.getUsedRange().getValues();
-  const outputData = outputSheet.getUsedRange().getValues();
+  // Get headers and data
+  const headers = table.getHeaderRowRange().getValues()[0] as string[];
+  const dataRange = table.getRangeBetweenHeaderAndTotal();
+  const data = dataRange.getValues();
 
-  // Get headers from both sheets
-  const sheet1Headers = sheet1Data[0];
-  const outputHeaders = outputData[0];
+  // Find 'Id' column index
+  const idColIndex = headers.indexOf("Id");
+  if (idColIndex === -1) throw new Error("Couldn't find 'Id' column");
 
-  // Identify column indices by header names
-  const idColIndex_Sheet1 = sheet1Headers.indexOf("Id");
-  const idColIndex_Output = outputHeaders.indexOf("Id");
+  // STEP 1: Detect RITM Column
+  const ritmRegex = /^RITM\d{4,}$/i;
+  let ritmColIndex = -1;
+  let maxCount = 0;
 
-  const columnsToMap = [
-    "OUTPUT - PCI",
-    "OUTPUT - PCI Cat",
-    "OUTPUT - System-Generated Data Classification",
-    "OUTPUT - App Team Suggested Data Classification"
-  ];
-
-  // Get the column indices of target columns in both sheets
-  const targetIndices_Sheet1 = columnsToMap.map(header => sheet1Headers.indexOf(header));
-  const targetIndices_Output = columnsToMap.map(header => outputHeaders.indexOf(header));
-
-  // Loop through each row in Output sheet (skip header)
-  for (let i = 1; i < outputData.length; i++) {
-    const outputRow = outputData[i];
-    const outputId = outputRow[idColIndex_Output];
-
-    if (!outputId) continue; // Skip if ID cell is empty
-
-    // Look for matching ID in Sheet1
-    const matchingRowIndex_Sheet1 = sheet1Data.findIndex((row, idx) =>
-      idx !== 0 && row[idColIndex_Sheet1] === outputId
-    );
-
-    if (matchingRowIndex_Sheet1 === -1) {
-      // No matching ID found in Sheet1 — skip silently
-      continue;
+  headers.forEach((_, colIndex) => {
+    let count = 0;
+    for (let row of data) {
+      const cell = row[colIndex]?.toString().trim();
+      if (ritmRegex.test(cell)) count++;
     }
+    if (count > maxCount) {
+      maxCount = count;
+      ritmColIndex = colIndex;
+    }
+  });
 
-    // If match found, try to copy only to empty cells
-    for (let j = 0; j < columnsToMap.length; j++) {
-      const colIndex_Sheet1 = targetIndices_Sheet1[j];
-      const colIndex_Output = targetIndices_Output[j];
+  if (ritmColIndex === -1) throw new Error("No RITM column detected.");
+  console.log(`✅ RITM column detected: ${String.fromCharCode(65 + ritmColIndex)} (${headers[ritmColIndex]})`);
 
-      const targetCellValue = sheet1Data[matchingRowIndex_Sheet1][colIndex_Sheet1];
+  // STEP 2: Group rows by RITM
+  const ritmGroups: Record<string, { rowIndex: number, id: number }[]> = {};
 
-      // Only update if the cell in Sheet1 is empty or null
-      if (targetCellValue === "" || targetCellValue === null) {
-        const valueToCopy = outputRow[colIndex_Output];
-        sheet1.getCell(matchingRowIndex_Sheet1, colIndex_Sheet1).setValue(valueToCopy);
+  for (let i = 0; i < data.length; i++) {
+    const row = data[i];
+    const ritmRaw = row[ritmColIndex]?.toString().trim();
+    const idRaw = row[idColIndex]?.toString().trim();
+
+    if (ritmRegex.test(ritmRaw) && !isNaN(Number(idRaw))) {
+      const ritm = ritmRaw.toUpperCase();
+      const id = Number(idRaw);
+      if (!ritmGroups[ritm]) ritmGroups[ritm] = [];
+      ritmGroups[ritm].push({ rowIndex: i, id });
+    }
+  }
+
+  // STEP 3: For each group, print decisions
+  for (const ritm in ritmGroups) {
+    const entries = ritmGroups[ritm];
+    if (entries.length <= 1) continue; // Nothing to strike
+
+    // Sort by ID (ascending)
+    entries.sort((a, b) => a.id - b.id);
+    const keeper = entries[entries.length - 1]; // Max ID is kept
+
+    console.log(`\n🔍 RITM: ${ritm}`);
+    console.log(`➡️ Keeping ID: ${keeper.id} (Row ${keeper.rowIndex + 2})`);
+    console.log(`🗑️ Marking these for strikethrough:`);
+
+    for (let entry of entries) {
+      if (entry.id !== keeper.id) {
+        console.log(`  - ID: ${entry.id} (Row ${entry.rowIndex + 2})`);
+        
+        // Commented action line — uncomment once you're confident
+        // const rowRange = dataRange.getCell(entry.rowIndex, 0).getEntireRow();
+        // rowRange.getFormat().getFont().setColor("red");
+        // rowRange.getFormat().setStrikethrough(true);
       }
     }
   }
-}
 
-
-
-function main(workbook: ExcelScript.Workbook) {
-  // Get references to the two worksheets
-  const sheet1 = workbook.getWorksheet("Sheet1");
-  const outputSheet = workbook.getWorksheet("Output");
-
-  // Get all data from both sheets
-  const sheet1Data = sheet1.getUsedRange().getValues();
-  const outputData = outputSheet.getUsedRange().getValues();
-
-  // Get headers
-  const sheet1Headers = sheet1Data[0];
-  const outputHeaders = outputData[0];
-
-  // Get the index of the ID column in both sheets
-  const idColIndex_Sheet1 = sheet1Headers.indexOf("Id");
-  const idColIndex_Output = outputHeaders.indexOf("Id");
-
-  // Target headers to sync
-  const columnsToMap = [
-    "OUTPUT - PCI",
-    "OUTPUT - PCI Cat",
-    "OUTPUT - System-Generated Data Classification",
-    "OUTPUT - App Team Suggested Data Classification"
-  ];
-
-  // Get column indices for both sheets
-  const targetIndices_Sheet1 = columnsToMap.map(header => sheet1Headers.indexOf(header));
-  const targetIndices_Output = columnsToMap.map(header => outputHeaders.indexOf(header));
-
-  // Loop through each row in Output sheet (starting after header)
-  for (let i = 1; i < outputData.length; i++) {
-    const outputRow = outputData[i];
-    const outputId = outputRow[idColIndex_Output];
-
-    if (!outputId) continue; // Skip empty IDs
-
-    // Find matching row in Sheet1 by ID
-    const matchingRowIndex_Sheet1 = sheet1Data.findIndex((row, idx) =>
-      idx !== 0 && row[idColIndex_Sheet1] === outputId
-    );
-
-    if (matchingRowIndex_Sheet1 === -1) continue; // No match found — skip
-
-    // Go column by column for the matching row
-    for (let j = 0; j < columnsToMap.length; j++) {
-      const colIndex_Sheet1 = targetIndices_Sheet1[j];
-      const colIndex_Output = targetIndices_Output[j];
-
-      const existingValue = sheet1Data[matchingRowIndex_Sheet1][colIndex_Sheet1];
-
-      // Only update if the cell in Sheet1 is empty
-      if (existingValue === "" || existingValue === null) {
-        let valueToCopy = outputRow[colIndex_Output];
-
-        // If the current column is "OUTPUT - System-Generated Data Classification", clean \r
-        if (columnsToMap[j] === "OUTPUT - System-Generated Data Classification" && typeof valueToCopy === "string") {
-          valueToCopy = valueToCopy.replace(/\r/g, " ");
-        }
-
-        // Set the cleaned or original value
-        sheet1.getCell(matchingRowIndex_Sheet1, colIndex_Sheet1).setValue(valueToCopy);
-      }
-    }
-  }
+  console.log(`\n✅ Debug pass complete. No changes applied — strike/highlight lines are commented out.`);
 }
