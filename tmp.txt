@@ -14,7 +14,9 @@ function main(workbook: ExcelScript.Workbook) {
     throw new Error('CMDB Status column not found in OutputTable.');
   }
 
-  let result: { RITM: string; ID: string }[] = [];
+  let result: {
+    RITM: string;ID: string
+  } [] = [];
 
   for (let i = 0; i < rows.length; i++) {
     let id = rows[i][0];
@@ -36,21 +38,20 @@ function main(workbook: ExcelScript.Workbook) {
 
   // === PART 2: Delete "CMDB Status" column from another table ===
   try {
-    const otherTable = workbook.getTable("YourOtherTableName"); // <-- change this
-    const otherHeaders = otherTable.getHeaderRowRange().getValues()[0];
-    const cmdbColIndex = otherHeaders.findIndex(h => h.trim().toLowerCase() === "cmdb status");
-
-    if (cmdbColIndex !== -1) {
-      otherTable.getColumns()[cmdbColIndex].delete();
-      console.log(`Deleted column "CMDB Status" from ${otherTable.getName()}`);
-    } else {
-      console.log(`No "CMDB Status" column found in ${otherTable.getName()}`);
+    const otherTable = workbook.getTable("YourOtherTableName"); // change table name
+    const headers = otherTable.getHeaderRowRange().getValues()[0];
+    const colIndex = headers.findIndex(h => h.trim().toLowerCase() === "cmdb status");
+    if (colIndex !== -1) {
+      const dataRange = otherTable.getDataBodyRange().getColumn(colIndex);
+      dataRange.clear(ExcelScript.ClearApplyTo.contents);
     }
-  } catch (err) {
-    console.error("Error deleting CMDB Status column from other table:", err);
-  }
+  } catch (err) {}
 
   // === PART 3: Output JSON ===
-  console.log(JSON.stringify({ records: result }, null, 2));
-  return { records: result };
+  console.log(JSON.stringify({
+    records: result
+  }, null, 2));
+  return {
+    records: result
+  };
 }
