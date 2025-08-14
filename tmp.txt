@@ -1,12 +1,17 @@
 function main(workbook: ExcelScript.Workbook) {
+  // === PART 1: Build JSON from OutputTable ===
+
   // Get the table named "OutputTable"
   const table = workbook.getTable("OutputTable");
+  if (!table) {
+    throw new Error('Table "OutputTable" not found. Check the Table Design tab for the exact name.');
+  }
 
-  // Get table data (headers + rows)
+  // Get headers and data rows
   const headers = table.getHeaderRowRange().getValues()[0].map(h => h.toString().trim());
   const rows = table.getRangeBetweenHeaderAndTotal().getValues();
 
-  // Find the CMDB Status column index in the table
+  // Find CMDB Status column index
   const statusColIndex = headers.findIndex(h => h.toLowerCase() === "cmdb status");
   if (statusColIndex === -1) {
     throw new Error('CMDB Status column not found in OutputTable.');
@@ -15,13 +20,13 @@ function main(workbook: ExcelScript.Workbook) {
   // Prepare JSON result
   let result: { RATM: string; ID: string }[] = [];
 
-  // Loop through each row in the table
+  // Loop through table rows
   for (let i = 0; i < rows.length; i++) {
-    let id = rows[i][0];   // Column A inside the table → ID
-    let ratm = rows[i][9]; // Column J inside the table → RATM
+    let id = rows[i][0];   // Column A → ID
+    let ratm = rows[i][2]; // Column C → RATM
     let status = rows[i][statusColIndex];
 
-    // Skip if missing ID or RATM
+    // Skip missing ID or RATM
     if (!id || !ratm) continue;
 
     // Skip if CMDB Status is "Closed Complete" or "Cancelled"
@@ -32,19 +37,32 @@ function main(workbook: ExcelScript.Workbook) {
       }
     }
 
-    // Add to result
+    // Add row to result array
     result.push({
       RATM: ratm.toString().trim(),
       ID: id.toString().trim()
     });
   }
 
-  // Return JSON object
+  // === PART 2: Delete "CMDB Status" column from a different sheet/table ===
+  try {
+    const targetSheet = workbook.getWorksheet("YourOtherSheetName"); // <-- change this
+    const targetTable = targetSheet.getTable("YourOtherTableName");   // <-- change this
+
+    const targetHeaders = targetTable.getHeaderRowRange().getValues()[0];
+    const cmdbColIndex = targetHeaders.findIndex(h => h.trim().toLowerCase() === "cmdb status");
+
+    if (cmdbColIndex !== -1) {
+      targetTable.getColumns()[cmdbColIndex].delete();
+      console.log(`Deleted column "CMDB Status" from ${targetTable.getName()}`);
+    } else {
+      console.log(`No "CMDB Status" column found in ${targetTable.getName()}`);
+    }
+  } catch (err) {
+    console.error("Error deleting CMDB Status column from other table:", err);
+  }
+
+  // === PART 3: Output JSON ===
+  console.log(JSON.stringify({ records: result }, null, 2)); // For testing
   return { records: result };
 }
-
-
-
-
-sheet1.getRangeByIndexes(matchingRowIndex_Sheet1, colIndex_Sheet1, 1, 1).setValue(valueToCopy);
-
