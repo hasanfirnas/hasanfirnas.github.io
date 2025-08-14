@@ -42,3 +42,9 @@ function main(workbook: ExcelScript.Workbook) {
   // Return JSON object
   return { records: result };
 }
+
+
+
+
+sheet1.getRangeByIndexes(matchingRowIndex_Sheet1, colIndex_Sheet1, 1, 1).setValue(valueToCopy);
+
