@@ -1,27 +1,25 @@
 function main(workbook: ExcelScript.Workbook) {
-  // Get the active worksheet
-  const sheet = workbook.getActiveWorksheet();
+  // Get the table named "OutputTable"
+  const table = workbook.getTable("OutputTable");
 
-  // Get used range values
-  const usedRange = sheet.getUsedRange();
-  const values = usedRange.getValues();
+  // Get table data (headers + rows)
+  const headers = table.getHeaderRowRange().getValues()[0].map(h => h.toString().trim());
+  const rows = table.getRangeBetweenHeaderAndTotal().getValues();
 
-  // Find the column index for "CMDB Status" (header row search)
-  const headers = values[0].map(h => h.toString().trim());
+  // Find the CMDB Status column index in the table
   const statusColIndex = headers.findIndex(h => h.toLowerCase() === "cmdb status");
-
   if (statusColIndex === -1) {
-    throw new Error('CMDB Status column not found.');
+    throw new Error('CMDB Status column not found in OutputTable.');
   }
 
   // Prepare JSON result
   let result: { RATM: string; ID: string }[] = [];
 
-  // Loop through each row (skip header row)
-  for (let i = 1; i < values.length; i++) {
-    let id = values[i][0];    // Column A → ID
-    let ratm = values[i][9];  // Column J → RATM
-    let status = values[i][statusColIndex];
+  // Loop through each row in the table
+  for (let i = 0; i < rows.length; i++) {
+    let id = rows[i][0];   // Column A inside the table → ID
+    let ratm = rows[i][9]; // Column J inside the table → RATM
+    let status = rows[i][statusColIndex];
 
     // Skip if missing ID or RATM
     if (!id || !ratm) continue;
