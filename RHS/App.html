@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>R-H-S Cipher</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --bg-card: #1e293b;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --accent: #6366f1;
+            --accent-hover: #4f46e5;
+            --border: #334155;
+            --shadow: rgba(0, 0, 0, 0.3);
+        }
+
+        body.light-theme {
+            --bg-primary: #f8fafc;
+            --bg-secondary: #ffffff;
+            --bg-card: #ffffff;
+            --text-primary: #0f172a;
+            --text-secondary: #64748b;
+            --accent: #6366f1;
+            --accent-hover: #4f46e5;
+            --border: #e2e8f0;
+            --shadow: rgba(0, 0, 0, 0.1);
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+            transition: background 0.3s ease, color 0.3s ease;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            animation: fadeInDown 0.6s ease;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+        }
+
+        .theme-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: var(--bg-card);
+            border: 2px solid var(--border);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.3rem;
+            transition: all 0.3s ease;
+            z-index: 100;
+            box-shadow: 0 4px 12px var(--shadow);
+        }
+
+        .theme-toggle:hover {
+            transform: scale(1.1) rotate(15deg);
+            border-color: var(--accent);
+        }
+
+        .container {
+            display: flex;
+            gap: 24px;
+            max-width: 1200px;
+            flex-wrap: wrap;
+            justify-content: center;
+            animation: fadeInUp 0.6s ease;
+        }
+
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 8px 32px var(--shadow);
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+
+        .card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 48px var(--shadow);
+        }
+
+        .text-card {
+            width: 400px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .text-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, #6366f1, #a855f7, #ec4899);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .text-card:hover::before {
+            opacity: 1;
+        }
+
+        .control-card {
+            width: 280px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .card-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .card-title::before {
+            content: '';
+            width: 4px;
+            height: 20px;
+            background: linear-gradient(180deg, #6366f1, #a855f7);
+            border-radius: 2px;
+        }
+
+        .copy-btn {
+            width: 36px;
+            height: 36px;
+            padding: 0;
+            font-size: 16px;
+            border: 2px solid var(--border);
+            background: var(--bg-secondary);
+            color: var(--text-secondary);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .copy-btn:hover {
+            background: var(--accent);
+            color: white;
+            border-color: var(--accent);
+            transform: scale(1.05);
+        }
+
+        .copy-btn:active {
+            transform: scale(0.95);
+        }
+
+        .copy-btn.copied {
+            background: #22c55e;
+            border-color: #22c55e;
+            color: white;
+        }
+
+        .char-counter {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            text-align: right;
+            margin-top: 8px;
+            font-weight: 500;
+        }
+
+        textarea {
+            width: 100%;
+            height: 320px;
+            font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+            font-size: 14px;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            padding: 16px;
+            resize: none;
+            outline: none;
+            transition: all 0.3s ease;
+            line-height: 1.6;
+        }
+
+        textarea:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+
+        textarea::placeholder {
+            color: var(--text-secondary);
+            opacity: 0.5;
+        }
+
+        .control-group {
+            margin-bottom: 24px;
+        }
+
+        .control-label {
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+            display: block;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 12px 16px;
+            font-size: 14px;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            border: 2px solid var(--border);
+            border-radius: 10px;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+
+        input[type="text"]:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+
+        .shift-control {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            margin-top: 12px;
+            background: var(--bg-secondary);
+            padding: 16px;
+            border-radius: 12px;
+            border: 2px solid var(--border);
+        }
+
+        button {
+            width: 42px;
+            height: 42px;
+            font-size: 20px;
+            font-weight: 600;
+            border: 2px solid var(--border);
+            background: var(--bg-card);
+            color: var(--accent);
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        button:hover:not(:disabled) {
+            background: var(--accent);
+            color: white;
+            border-color: var(--accent);
+            transform: scale(1.05);
+        }
+
+        button:active:not(:disabled) {
+            transform: scale(0.95);
+        }
+
+        button:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+        .shift-value {
+            min-width: 60px;
+            text-align: center;
+            font-weight: 700;
+            font-size: 1.5rem;
+            color: var(--accent);
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 16px;
+            background: var(--bg-secondary);
+            border-radius: 10px;
+            border: 2px solid var(--border);
+            font-size: 0.85rem;
+            margin-top: auto;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #ef4444;
+            animation: pulse 2s infinite;
+        }
+
+        .status-indicator.active .status-dot {
+            background: #22c55e;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: var(--bg-card);
+            color: var(--text-primary);
+            padding: 16px 24px;
+            border-radius: 12px;
+            border: 2px solid var(--accent);
+            box-shadow: 0 8px 32px var(--shadow);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.3s ease;
+            pointer-events: none;
+            z-index: 1000;
+        }
+
+        .toast.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .toast-icon {
+            font-size: 1.2rem;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        @keyframes fadeInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @media (max-width: 1200px) {
+            .container {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .text-card, .control-card {
+                width: 100%;
+                max-width: 450px;
+            }
+
+            .header h1 {
+                font-size: 2rem;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .theme-toggle {
+                top: 10px;
+                right: 10px;
+                width: 42px;
+                height: 42px;
+            }
+
+            .header h1 {
+                font-size: 1.75rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="theme-toggle" id="themeToggle">🌙</div>
+    
+    <div class="header">
+        <h1>R-H-S Cipher</h1>
+        <p>Oii, Are you sure about it?</p>
+    </div>
+
+    <div class="container">
+        <div class="card text-card">
+            <div class="card-header">
+                <div class="card-title">Plain Text</div>
+                <button class="copy-btn" id="copyPlain" title="Copy to clipboard">📋</button>
+            </div>
+            <textarea id="plainText" placeholder="Enter your message here..."></textarea>
+            <div class="char-counter" id="plainCounter">0 characters</div>
+        </div>
+
+        <div class="card control-card">
+            <div class="card-title">Configuration</div>
+            
+            <div class="control-group">
+                <label class="control-label">Secret Key</label>
+                <input type="text" id="secretKey" placeholder="Enter key...">
+            </div>
+
+            <div class="control-group">
+                <label class="control-label">Shift Value</label>
+                <div class="shift-control">
+                    <button id="btnMinus" disabled>−</button>
+                    <span class="shift-value" id="shiftValue">1</span>
+                    <button id="btnPlus" disabled>+</button>
+                </div>
+            </div>
+
+            <div class="status-indicator" id="statusIndicator">
+                <div class="status-dot"></div>
+                <span>Cipher Disabled</span>
+            </div>
+        </div>
+
+        <div class="card text-card">
+            <div class="card-header">
+                <div class="card-title">Cipher Text</div>
+                <button class="copy-btn" id="copyCipher" title="Copy to clipboard">📋</button>
+            </div>
+            <textarea id="cipherText" placeholder="Enter encrypted text here..."></textarea>
+            <div class="char-counter" id="cipherCounter">0 characters</div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast">
+        <span class="toast-icon">✓</span>
+        <span id="toastMessage">Copied to clipboard!</span>
+    </div>
+
+    <script>
+        let lock = false;
+        let lastActive = 'left';
+        let shiftValue = 1;
+
+        const plainText = document.getElementById('plainText');
+        const cipherText = document.getElementById('cipherText');
+        const secretKey = document.getElementById('secretKey');
+        const shiftDisplay = document.getElementById('shiftValue');
+        const btnPlus = document.getElementById('btnPlus');
+        const btnMinus = document.getElementById('btnMinus');
+        const themeToggle = document.getElementById('themeToggle');
+        const statusIndicator = document.getElementById('statusIndicator');
+
+        // Theme toggle
+        const savedTheme = localStorage.getItem('theme') || 'dark';
+        if (savedTheme === 'light') {
+            document.body.classList.add('light-theme');
+            themeToggle.textContent = '☀️';
+        }
+
+        themeToggle.addEventListener('click', () => {
+            document.body.classList.toggle('light-theme');
+            const isLight = document.body.classList.contains('light-theme');
+            themeToggle.textContent = isLight ? '☀️' : '🌙';
+            localStorage.setItem('theme', isLight ? 'light' : 'dark');
+        });
+
+        // SHA-256 based keystream generation (matching Python logic)
+        async function keystream(key, shift, length) {
+            const encoder = new TextEncoder();
+            const seed = encoder.encode(key + shift.toString());
+            let output = new Uint8Array(0);
+            let counter = 0;
+
+            while (output.length < length) {
+                const counterBytes = new Uint8Array(4);
+                new DataView(counterBytes.buffer).setUint32(0, counter, false);
+                
+                const combined = new Uint8Array(seed.length + counterBytes.length);
+                combined.set(seed);
+                combined.set(counterBytes, seed.length);
+                
+                const hashBuffer = await crypto.subtle.digest('SHA-256', combined);
+                const hashArray = new Uint8Array(hashBuffer);
+                
+                const newOutput = new Uint8Array(output.length + hashArray.length);
+                newOutput.set(output);
+                newOutput.set(hashArray, output.length);
+                output = newOutput;
+                
+                counter++;
+            }
+
+            return output.slice(0, length);
+        }
+
+        // Base64 encoding/decoding
+        function base64Encode(bytes) {
+            let binary = '';
+            for (let i = 0; i < bytes.length; i++) {
+                binary += String.fromCharCode(bytes[i]);
+            }
+            return btoa(binary);
+        }
+
+        function base64Decode(str) {
+            try {
+                const binary = atob(str);
+                const bytes = new Uint8Array(binary.length);
+                for (let i = 0; i < binary.length; i++) {
+                    bytes[i] = binary.charCodeAt(i);
+                }
+                return bytes;
+            } catch (e) {
+                return null;
+            }
+        }
+
+        // Encrypt function (matching Python logic)
+        async function encrypt(text, key, shift) {
+            const encoder = new TextEncoder();
+            const data = encoder.encode(text);
+            const ks = await keystream(key, shift, data.length);
+            
+            const cipher = new Uint8Array(data.length);
+            for (let i = 0; i < data.length; i++) {
+                cipher[i] = data[i] ^ ks[i];
+            }
+            
+            return base64Encode(cipher);
+        }
+
+        // Decrypt function (matching Python logic)
+        async function decrypt(text, key, shift) {
+            const data = base64Decode(text);
+            if (!data) return '';
+            
+            const ks = await keystream(key, shift, data.length);
+            
+            const plain = new Uint8Array(data.length);
+            for (let i = 0; i < data.length; i++) {
+                plain[i] = data[i] ^ ks[i];
+            }
+            
+            const decoder = new TextDecoder('utf-8', { fatal: false });
+            return decoder.decode(plain);
+        }
+
+        function cipherEnabled() {
+            return secretKey.value.trim() !== '';
+        }
+
+        function updateStatus() {
+            if (cipherEnabled()) {
+                statusIndicator.classList.add('active');
+                statusIndicator.querySelector('span').textContent = 'Cipher Active';
+            } else {
+                statusIndicator.classList.remove('active');
+                statusIndicator.querySelector('span').textContent = 'Cipher Disabled';
+            }
+        }
+
+        async function processFromLeft() {
+            if (lock) return;
+            lastActive = 'left';
+            lock = true;
+            
+            const txt = plainText.value;
+            let out;
+            
+            if (cipherEnabled()) {
+                out = await encrypt(txt, secretKey.value, shiftValue);
+            } else {
+                out = txt;
+            }
+            
+            cipherText.value = out;
+            lock = false;
+        }
+
+        async function processFromRight() {
+            if (lock) return;
+            lastActive = 'right';
+            lock = true;
+            
+            const txt = cipherText.value;
+            let out;
+            
+            if (cipherEnabled()) {
+                out = await decrypt(txt, secretKey.value, shiftValue);
+            } else {
+                out = txt;
+            }
+            
+            plainText.value = out;
+            lock = false;
+        }
+
+        function refreshOnParamChange() {
+            const enabled = cipherEnabled();
+            btnPlus.disabled = !enabled;
+            btnMinus.disabled = !enabled;
+            updateStatus();
+            
+            if (lastActive === 'left') {
+                processFromLeft();
+            } else {
+                processFromRight();
+            }
+        }
+
+        function incShift() {
+            shiftValue++;
+            shiftDisplay.textContent = shiftValue;
+            refreshOnParamChange();
+        }
+
+        function decShift() {
+            if (shiftValue > 1) {
+                shiftValue--;
+                shiftDisplay.textContent = shiftValue;
+                refreshOnParamChange();
+            }
+        }
+
+        plainText.addEventListener('input', processFromLeft);
+        cipherText.addEventListener('input', processFromRight);
+        secretKey.addEventListener('input', refreshOnParamChange);
+        btnPlus.addEventListener('click', incShift);
+        btnMinus.addEventListener('click', decShift);
+
+        updateStatus();
+    </script>
+</body>
+</html>
