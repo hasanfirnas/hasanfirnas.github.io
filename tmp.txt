@@ -1,26 +1,41 @@
 function main(workbook: ExcelScript.Workbook) {
 
-  const sourceTable = workbook.getWorksheet("Sheet1").getTable("OfficeForms.Table");
-  const binTable = workbook.getWorksheet("Bin").getTable("Bin.Table");
+  // =========================
+  // CONFIG
+  // =========================
+  const SOURCE_SHEET = "Sheet1";
+  const SOURCE_TABLE = "OfficeForms.Table";
+  const BIN_SHEET = "Bin";
+  const BIN_TABLE = "Bin.Table";
+
+  // =========================
+  // LOAD TABLES
+  // =========================
+  const sourceTable = workbook.getWorksheet(SOURCE_SHEET).getTable(SOURCE_TABLE);
+  const binTable = workbook.getWorksheet(BIN_SHEET).getTable(BIN_TABLE);
 
   const headers = sourceTable.getHeaderRowRange().getValues()[0] as string[];
-  const sourceRange = sourceTable.getRangeBetweenHeaderAndTotal();
-  const sourceData = sourceRange.getValues();
+  const dataRange = sourceTable.getRangeBetweenHeaderAndTotal();
+  const data = dataRange.getValues();
 
-  // Find Id column
+  // =========================
+  // FIND Id COLUMN
+  // =========================
   const idColIndex = headers.indexOf("Id");
   if (idColIndex === -1) {
-    throw new Error("Id column not found in source table");
+    throw new Error("❌ 'Id' column not found");
   }
 
-  // Detect RITM column dynamically
+  // =========================
+  // DETECT RITM COLUMN
+  // =========================
   const ritmRegex = /^RITM\d{4,}$/i;
   let ritmColIndex = -1;
   let maxCount = 0;
 
   headers.forEach((_, colIndex) => {
     let count = 0;
-    for (const row of sourceData) {
+    for (const row of data) {
       const cell = row[colIndex]?.toString().trim();
       if (ritmRegex.test(cell)) count++;
     }
@@ -31,50 +46,49 @@ function main(workbook: ExcelScript.Workbook) {
   });
 
   if (ritmColIndex === -1) {
-    throw new Error("RITM column could not be detected");
+    throw new Error("❌ RITM column could not be detected");
   }
 
-  // Trim RITM values in Excel (in-place)
-  for (let i = 0; i < sourceData.length; i++) {
-    const val = sourceData[i][ritmColIndex];
-    if (typeof val === "string") {
-      const trimmed = val.trim();
-      if (val !== trimmed) {
-        sourceRange.getCell(i, ritmColIndex).setValue(trimmed);
-        sourceData[i][ritmColIndex] = trimmed;
+  // =========================
+  // TRIM RITM VALUES IN EXCEL
+  // =========================
+  for (let i = 0; i < data.length; i++) {
+    const cellVal = data[i][ritmColIndex];
+    if (typeof cellVal === "string") {
+      const trimmed = cellVal.trim();
+      if (trimmed !== cellVal) {
+        dataRange.getCell(i, ritmColIndex).setValue(trimmed);
+        data[i][ritmColIndex] = trimmed;
       }
     }
   }
 
-  // Group rows by RITM
-  const ritmGroups: Record<string, { rowIndex: number; id: number }> = {};
+  // =========================
+  // GROUP ROWS BY RITM
+  // =========================
+  const groups: Record<string, { rowIndex: number; id: number }[]> = {};
 
-  for (let i = 0; i < sourceData.length; i++) {
-    const ritmRaw = sourceData[i][ritmColIndex]?.toString().trim();
-    const idRaw = sourceData[i][idColIndex]?.toString().trim();
+  for (let i = 0; i < data.length; i++) {
+    const ritm = data[i][ritmColIndex]?.toString().trim();
+    const idRaw = data[i][idColIndex]?.toString().trim();
 
-    if (ritmRegex.test(ritmRaw) && !isNaN(Number(idRaw))) {
-      const key = `${ritmRaw.toUpperCase()}_${i}`;
-      ritmGroups[key] = { rowIndex: i, id: Number(idRaw) };
+    if (ritmRegex.test(ritm) && !isNaN(Number(idRaw))) {
+      const key = ritm.toUpperCase();
+      if (!groups[key]) groups[key] = [];
+      groups[key].push({ rowIndex: i, id: Number(idRaw) });
     }
   }
 
-  // Build RITM → rows map
-  const grouped: Record<string, { rowIndex: number; id: number }[]> = {};
-
-  Object.values(ritmGroups).forEach(({ rowIndex, id }) => {
-    const ritm = sourceData[rowIndex][ritmColIndex].toString().toUpperCase();
-    if (!grouped[ritm]) grouped[ritm] = [];
-    grouped[ritm].push({ rowIndex, id });
-  });
-
-  // Collect rows to move (older duplicates)
+  // =========================
+  // COLLECT ROWS TO MOVE
+  // =========================
   const rowsToMove: number[] = [];
 
-  for (const ritm in grouped) {
-    const entries = grouped[ritm];
+  for (const ritm in groups) {
+    const entries = groups[ritm];
     if (entries.length <= 1) continue;
 
+    // keep highest Id
     entries.sort((a, b) => a.id - b.id);
     const keeper = entries[entries.length - 1];
 
@@ -85,21 +99,23 @@ function main(workbook: ExcelScript.Workbook) {
     }
   }
 
-  // IMPORTANT: process from bottom to top
+  // =========================
+  // MOVE + DELETE (BOTTOM → TOP)
+  // =========================
   rowsToMove.sort((a, b) => b - a);
 
   for (const rowIndex of rowsToMove) {
-    const rowValues = sourceRange.getRow(rowIndex).getValues()[0];
+    const rowRange = dataRange.getRow(rowIndex);
+    const rowValues = rowRange.getValues()[0];
 
-    // Move to Bin table
+    // 1️⃣ Move to Bin table
     binTable.addRow(-1, rowValues);
 
-    // Optional: formatting before delete (purely cosmetic)
-    const rowRange = sourceRange.getRow(rowIndex);
+    // 2️⃣ Optional visual mark before delete
     rowRange.getFormat().getFill().setColor("red");
     rowRange.getFormat().getFont().setStrikethrough(true);
 
-    // Delete from source table
-    sourceTable.deleteRowsAt(rowIndex, 1);
+    // 3️⃣ SAFE delete (Office Scripts compliant)
+    rowRange.delete(ExcelScript.DeleteShiftDirection.up);
   }
 }
