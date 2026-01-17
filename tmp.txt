@@ -83,4 +83,48 @@ function main(workbook: ExcelScript.Workbook) {
   }
 
   // console.log(`\n✅ Debug pass complete. No changes applied — strike/highlight lines are commented out.`);
+
+  // ============= NEW FUNCTIONALITY STARTS HERE =============
+  // This section moves strikethrough rows to another table WITHOUT changing above logic
+  // 🚀 THIS LINE MOVES STRIKETHROUGH ROWS TO ANOTHER TABLE
+  
+  try {
+    // Get the destination table - CHANGE THIS TO YOUR TABLE NAME
+    const destinationTable = workbook.getWorksheet("Sheet2").getTable("ArchiveTable");
+    // If you get error here, change "Sheet2" and "ArchiveTable" to your actual sheet and table names
+    
+    // Find all rows with strikethrough in the source table
+    const sourceDataRange = table.getRangeBetweenHeaderAndTotal();
+    const rowsToMove: number[] = [];
+    
+    // Scan through each row to find strikethrough formatting
+    for (let i = 0; i < table.getTotalRowCount() - 1; i++) { // -1 to exclude total row if exists
+      const rowRange = sourceDataRange.getRow(i);
+      if (rowRange.getFormat().getFont().getStrikethrough()) {
+        rowsToMove.push(i);
+      }
+    }
+    
+    // Sort in reverse order so we delete from bottom to top (maintains indices)
+    rowsToMove.sort((a, b) => b - a);
+    
+    // Move each strikethrough row
+    rowsToMove.forEach(rowIndex => {
+      // Get the entire row data (values only, no formatting)
+      const rowValues = sourceDataRange.getRow(rowIndex).getValues();
+      
+      // Add to destination table
+      destinationTable.addRow(-1, rowValues[0]);
+      
+      // Delete from source table
+      table.deleteRowsAt(rowIndex, 1);
+    });
+    
+    // console.log(`✅ Moved ${rowsToMove.length} rows to destination table`);
+    
+  } catch (error) {
+    // console.log("⚠️ Destination table not found or error in moving rows. Continuing...");
+    // Silently continue - this allows your original script to work even if destination doesn't exist
+  }
+  // ============= NEW FUNCTIONALITY ENDS HERE =============
 }
