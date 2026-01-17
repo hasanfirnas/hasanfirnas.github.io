@@ -1,8 +1,5 @@
 function main(workbook: ExcelScript.Workbook) {
   const table = workbook.getWorksheet("Sheet1").getTable("OfficeForms.Table");
-  
-  // 🚀 ADD THIS LINE: Get the destination table ready BEFORE processing
-  const destinationTable = workbook.getWorksheet("Bin").getTable("Bin.Table");
 
   // Get headers and data
   const headers = table.getHeaderRowRange().getValues()[0] as string[];
@@ -60,10 +57,7 @@ function main(workbook: ExcelScript.Workbook) {
     }
   }
 
-  // 🚀 CRITICAL: We need to track rows to delete in REVERSE order
-  const rowsToDelete: number[] = [];
-
-  // STEP 3: For each group, process duplicates
+  // STEP 3: For each group, print decisions
   for (const ritm in ritmGroups) {
     const entries = ritmGroups[ritm];
     if (entries.length <= 1) continue; // Nothing to strike
@@ -72,25 +66,61 @@ function main(workbook: ExcelScript.Workbook) {
     entries.sort((a, b) => a.id - b.id);
     const keeper = entries[entries.length - 1]; // Max ID is kept
 
+    // console.log(`\n🔍 RITM: ${ritm}`);
+    // console.log(`➡️ Keeping ID: ${keeper.id} (Row ${keeper.rowIndex + 2})`);
+    // console.log(`🗑️ Marking these for strikethrough:`);
+
     for (let entry of entries) {
       if (entry.id !== keeper.id) {
-        // 🚀 THIS LINE MOVES THE ROW TO DESTINATION TABLE
-        // Get the entire row values
-        const rowValues = dataRange.getRow(entry.rowIndex).getValues()[0];
-        // Add to destination table
-        destinationTable.addRow(-1, rowValues);
-        
-        // Mark this row for deletion (from bottom to top later)
-        rowsToDelete.push(entry.rowIndex);
+        // console.log(`  - ID: ${entry.id} (Row ${entry.rowIndex + 2})`);
+
+        // Commented action line — uncomment once you're confident
+        const rowRange = dataRange.getRow(entry.rowIndex);
+        rowRange.getFormat().getFill().setColor("red");
+        rowRange.getFormat().getFont().setStrikethrough(true);
       }
     }
   }
 
-  // 🚀 Delete rows in REVERSE order (so indices don't shift)
-  rowsToDelete.sort((a, b) => b - a); // Sort descending
-  for (const rowIndex of rowsToDelete) {
-    table.deleteRowsAt(rowIndex, 1);
-  }
+  // console.log(`\n✅ Debug pass complete. No changes applied — strike/highlight lines are commented out.`);
 
-  // console.log(`\n✅ Moved ${rowsToDelete.length} rows to Bin.Table`);
+  // 🚀 ============= NEW FUNCTIONALITY: ONE-BY-ONE MOVEMENT ============= 🚀
+  // THIS SECTION MOVES RED & STRIKETHROUGH ROWS TO BIN TABLE IMMEDIATELY
+  try {
+    // Get the destination table
+    const destinationTable = workbook.getWorksheet("Bin").getTable("Bin.Table");
+    
+    // We need to process from BOTTOM to TOP because deleting rows changes indices
+    const sourceDataRange = table.getRangeBetweenHeaderAndTotal();
+    const totalRows = table.getTotalRowCount() - 1; // -1 to exclude total row if exists
+    
+    // Start from the bottom and go up
+    for (let rowIndex = totalRows - 1; rowIndex >= 0; rowIndex--) {
+      const rowRange = sourceDataRange.getRow(rowIndex);
+      const isRed = rowRange.getFormat().getFill().getColor() === "red";
+      const isStrikethrough = rowRange.getFormat().getFont().getStrikethrough();
+      
+      // 🚀 THIS LINE MOVES EACH RED & STRIKETHROUGH ROW ONE BY ONE
+      if (isRed && isStrikethrough) {
+        // Step 1: Get the row values
+        const rowValues = rowRange.getValues()[0];
+        
+        // Step 2: Add to destination table
+        destinationTable.addRow(-1, rowValues);
+        
+        // Step 3: Immediately delete from source table
+        table.deleteRowsAt(rowIndex, 1);
+        
+        // Small pause to ensure Excel processes the change (optional)
+        // workbook.getApplication().suspendScreenUpdatingUntilNextSync();
+      }
+    }
+    
+    // console.log(`✅ One-by-one movement completed`);
+    
+  } catch (error) {
+    // If destination table doesn't exist, just continue
+    // console.log("⚠️ Destination table not found. Skipping movement.");
+  }
+  // 🚀 ============= END OF NEW FUNCTIONALITY ============= 🚀
 }
