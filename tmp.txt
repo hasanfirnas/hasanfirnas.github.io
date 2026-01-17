@@ -1,148 +1,115 @@
-/**
- * Office Script: CheckRITMStatus
- * Parameters:
- *   - ritmId (string)  : RITM value passed from Power Automate (e.g. "RITM 12345")
- *
- * Returns: JSON string with { status: "new" | "duplicate_active", details: { ... } }
- *
- * IMPORTANT: adjust the constants below to match your workbook (sheet names, header rows, column indexes).
- */
-function main(workbook: ExcelScript.Workbook, ritmId: string): string {
-  // ---------- CONFIG - change these to match your workbook ----------
-  const OUTPUT_SHEET_NAME = "Output";    // sheet that contains the form outputs
-  const MAIN_SHEET_NAME   = "Sheet1";    // main table where rows may be strike-throughed/colored
-  const HEADER_ROWS = 1;                 // number of header rows at top (usually 1)
+function main(workbook: ExcelScript.Workbook, ritmInput: string): string {
 
-  // Column indexes (0-based)
-  const OUTPUT_RITM_COL = 2; // column C in Output sheet (0-based -> C = 2)
-  const OUTPUT_ID_COL   = 0; // column A in Output sheet (ID that maps to main sheet)
-  const OUTPUT_EMAIL_COL= 3; // column D in Output sheet (email of submitter)
+  // ---------------- CONFIG ----------------
+  const OUTPUT_TABLE_NAME = "OutputTable";
+  const FORMS_TABLE_NAME  = "OfficeForms.Table";
+  // ----------------------------------------
 
-  // Colors to treat as "highlighted" (compare uppercase hex). Add more if your sheet uses different hex.
-  const YELLOW_HEX = "#FFFF00";
-  const RED_HEX    = "#FF0000";
-  // ----------------------------------------------------------------
-
-  // Basic sanity
-  if (!ritmId || ("" + ritmId).trim() === "") {
-    return JSON.stringify({ status: "error", message: "Empty RITM passed" });
-  }
-  ritmId = ("" + ritmId).trim();
-
-  // Get Output sheet and used range
-  const outWs = workbook.getWorksheet(OUTPUT_SHEET_NAME);
-  if (!outWs) return JSON.stringify({ status: "error", message: `Worksheet '${OUTPUT_SHEET_NAME}' not found` });
-
-  const outUsed = outWs.getUsedRange();
-  if (!outUsed) return JSON.stringify({ status: "new" }); // nothing in output -> treat as new
-
-  const outVals: any[][] = outUsed.getValues();
-  const outStartRow = outUsed.getRowIndex(); // absolute start row on sheet
-  let foundOutRowIndex = -1; // index inside outVals (0-based)
-  // search rows (skip header rows)
-  for (let r = HEADER_ROWS; r < outVals.length; r++) {
-    const cell = (outVals[r][OUTPUT_RITM_COL] ?? "").toString().trim();
-    if (cell.toLowerCase() === ritmId.toLowerCase()) { foundOutRowIndex = r; break; }
+  if (!ritmInput || ritmInput.trim() === "") {
+    return JSON.stringify({ status: "error", message: "Empty RITM" });
   }
 
-  if (foundOutRowIndex === -1) {
-    // RITM not present in Output sheet -> NEW
+  const ritm = ritmInput.trim().toLowerCase();
+
+  // ---------- STEP 1: Check OutputTable ----------
+  const outputTable = workbook.getTable(OUTPUT_TABLE_NAME);
+  const outputRows = outputTable
+    .getRangeBetweenHeaderAndTotal()
+    .getValues();
+
+  const matchedIds: string[] = [];
+
+  for (let i = 0; i < outputRows.length; i++) {
+    const row = outputRows[i];
+    const rowRitm = String(row[2] ?? "").trim().toLowerCase(); // Column C (RITM)
+
+    if (rowRitm === ritm) {
+      matchedIds.push(String(row[0] ?? "").trim()); // Column A (ID)
+    }
+  }
+
+  // RITM never processed before
+  if (matchedIds.length === 0) {
     return JSON.stringify({ status: "new" });
   }
 
-  // Found in Output sheet -> grab ID (col A) and email (col D)
-  const mappedId = outVals[foundOutRowIndex][OUTPUT_ID_COL];
-  const submitterEmail = outVals[foundOutRowIndex][OUTPUT_EMAIL_COL] ?? "";
+  // ---------- STEP 2: Scan OfficeForms.Table ----------
+  const formsTable = workbook.getTable(FORMS_TABLE_NAME);
+  const formsRange = formsTable.getRangeBetweenHeaderAndTotal();
+  const formsValues = formsRange.getValues();
 
-  // If ID is empty, treat as new (can't map to main sheet)
-  if (!mappedId || ("" + mappedId).trim() === "") {
-    return JSON.stringify({ status: "new" });
-  }
-  const idValue = ("" + mappedId).trim();
+  const worksheet = formsTable.getWorksheet();
+  const totalCols = formsRange.getColumnCount();
 
-  // Now search main sheet for ID in column A
-  const mainWs = workbook.getWorksheet(MAIN_SHEET_NAME);
-  if (!mainWs) return JSON.stringify({ status: "error", message: `Worksheet '${MAIN_SHEET_NAME}' not found` });
+  for (let i = 0; i < formsValues.length; i++) {
+    const row = formsValues[i];
+    const formId = String(row[0] ?? "").trim(); // Column A (ID)
 
-  const mainUsed = mainWs.getUsedRange();
-  if (!mainUsed) return JSON.stringify({ status: "new" }); // main sheet empty -> treat as new
+    if (!matchedIds.includes(formId)) continue;
 
-  const mainVals: any[][] = mainUsed.getValues();
-  const mainStartRow = mainUsed.getRowIndex();
-  let foundMainRowIndex = -1;
-  for (let r = HEADER_ROWS; r < mainVals.length; r++) {
-    const cell = (mainVals[r][0] ?? "").toString().trim(); // column A in main sheet
-    if (cell === idValue) { foundMainRowIndex = r; break; }
-  }
-  if (foundMainRowIndex === -1) {
-    // ID not found in main sheet -> treat as new
-    return JSON.stringify({ status: "new" });
-  }
+    const absoluteRowIndex = formsRange.getRowIndex() + i;
+    const rowRange = worksheet.getRangeByIndexes(
+      absoluteRowIndex,
+      0,
+      1,
+      totalCols
+    );
 
-  // Determine absolute worksheet row index for getRangeByIndexes
-  const worksheetRow = mainStartRow + foundMainRowIndex;
-
-  // Check the ID cell's formatting
-  const idCellRange = mainWs.getRangeByIndexes(worksheetRow, 0, 1, 1); // 1 row x 1 col
-  const idCellFont = idCellRange.getFormat().getFont();
-  const idCellFill = idCellRange.getFormat().getFill();
-
-  let idCellStruck = false;
-  try { idCellStruck = !!idCellFont.getStrikethrough(); } catch (e) { /* best-effort */ }
-
-  let idCellColor = "";
-  try { idCellColor = (idCellFill.getColor() || "").toString().toUpperCase(); } catch (e) { idCellColor = ""; }
-
-  // Also check whole row for ANY strikethrough or fill color (robustness)
-  const totalCols = mainUsed.getColumnCount();
-  const rowRange = mainWs.getRangeByIndexes(worksheetRow, 0, 1, totalCols);
-  let anyRowStruck = false;
-  try {
-    const rowFonts = rowRange.getFormat().getFont().getStrikethrough();
-    // rowFonts can be boolean (single cell) or 2D array; normalize check
-    if (Array.isArray(rowFonts)) {
-      for (let rr = 0; rr < rowFonts.length && !anyRowStruck; rr++) {
-        for (let cc = 0; cc < rowFonts[rr].length; cc++) {
-          if (rowFonts[rr][cc]) { anyRowStruck = true; break; }
+    // ---------- STRIKE-THROUGH CHECK (ENTIRE ROW) ----------
+    let rowStruck = false;
+    try {
+      const strikeInfo = rowRange.getFormat().getFont().getStrikethrough();
+      if (typeof strikeInfo === "boolean") {
+        rowStruck = strikeInfo;
+      } else if (Array.isArray(strikeInfo)) {
+        outer: for (let r = 0; r < strikeInfo.length; r++) {
+          for (let c = 0; c < strikeInfo[r].length; c++) {
+            if (strikeInfo[r][c]) {
+              rowStruck = true;
+              break outer;
+            }
+          }
         }
       }
-    } else {
-      anyRowStruck = !!rowFonts;
-    }
-  } catch (e) { /* ignore formatting read errors */ }
+    } catch {}
 
-  // Attempt to get row fill color (some ranges return a single color string, some return array)
-  let anyRowColored = false;
-  try {
-    const rowFillColorRaw = rowRange.getFormat().getFill().getColor();
-    if (!rowFillColorRaw) { anyRowColored = false; }
-    else if (typeof rowFillColorRaw === "string") {
-      const c = rowFillColorRaw.toUpperCase();
-      if (c === YELLOW_HEX || c === RED_HEX) anyRowColored = true;
-    } else if (Array.isArray(rowFillColorRaw)) {
-      // iterate and check any equal to the hex codes (be forgiving by uppercase compare)
-      for (let rr = 0; rr < rowFillColorRaw.length && !anyRowColored; rr++) {
-        for (let cc = 0; cc < rowFillColorRaw[rr].length; cc++) {
-          const c = (rowFillColorRaw[rr][cc] ?? "").toString().toUpperCase();
-          if (c === YELLOW_HEX || c === RED_HEX) { anyRowColored = true; break; }
+    // ---------- COLOR CHECK (ENTIRE ROW) ----------
+    let rowColored = false;
+    try {
+      const fillInfo = rowRange.getFormat().getFill().getColor();
+      if (typeof fillInfo === "string" && fillInfo !== "") {
+        rowColored = true;
+      } else if (Array.isArray(fillInfo)) {
+        outer2: for (let r = 0; r < fillInfo.length; r++) {
+          for (let c = 0; c < fillInfo[r].length; c++) {
+            if (fillInfo[r][c]) {
+              rowColored = true;
+              break outer2;
+            }
+          }
         }
       }
-    }
-  } catch (e) { /* ignore */ }
+    } catch {}
 
-  // DECISION logic to match your description:
-  // - If row is striked OR row is colored (red/yellow) => treat as NEW (submitter allowed to resubmit)
-  // - Else => treat as DUPLICATE_ACTIVE (someone already filled it and it's not marked as rejected)
-  if (idCellStruck || anyRowStruck || anyRowColored) {
-    return JSON.stringify({
-      status: "new",
-      reason: "existing_entry_struck_or_colored",
-      details: { worksheetRow: worksheetRow + 1, id: idValue, ritm: ritmId, email: submitterEmail }
-    });
-  } else {
-    return JSON.stringify({
-      status: "duplicate_active",
-      details: { worksheetRow: worksheetRow + 1, id: idValue, ritm: ritmId, email: submitterEmail }
-    });
+    // ---------- ACTIVE DUPLICATE FOUND ----------
+    if (!rowStruck && !rowColored) {
+      const email = String(row[3] ?? "").trim(); // Column D (Email)
+
+      return JSON.stringify({
+        status: "duplicate_active",
+        details: {
+          id: formId,
+          ritm: ritmInput,
+          email: email,
+          rowNumber: absoluteRowIndex + 1
+        }
+      });
+    }
   }
+
+  // ---------- Only rejected / struck rows exist ----------
+  return JSON.stringify({
+    status: "new",
+    reason: "all_previous_entries_rejected"
+  });
 }
