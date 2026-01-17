@@ -1,46 +1,86 @@
-function main(workbook: ExcelScript.Workbook, ritmId: string) {
-  try {
-    const outputTable = workbook.getWorksheet("output").getTable("OutputTable");
-    const formsTable = workbook.getWorksheet("Sheet1").getTable("OfficeForms.Table");
-    
-    const outputData = outputTable.getRangeBetweenHeaderAndTotal().getValues();
-    
-    for (let i = 0; i < outputData.length; i++) {
-      const ritmCell = outputData[i][2];
-      if (ritmCell && ritmCell.toString().includes(ritmId)) {
-        const rowId = outputData[i][0]?.toString() || "";
-        const formsData = formsTable.getRangeBetweenHeaderAndTotal().getValues();
-        
-        for (let j = 0; j < formsData.length; j++) {
-          const idCell = formsData[j][0];
-          if (idCell && idCell.toString() === rowId) {
-            const rowRange = formsTable.getRangeBetweenHeaderAndTotal().getRow(j);
-            
-            // Check ONLY strikethrough on first cell (ID cell in column A)
-            const firstCell = rowRange.getCell(0, 0);
-            const hasStrikethrough = firstCell.getFormat().getFont().getStrikethrough();
-            
-            // If striked → NEW
-            if (hasStrikethrough) {
-              console.log(JSON.stringify({status: "NEW"}));
-              return;
-            }
-            
-            // Not striked → FOUND with email
-            const email = formsData[j][3]?.toString() || "";
-            console.log(JSON.stringify({
-              RITM_ID: ritmId,
-              ID: rowId,
-              Email: email,
-              status: "FOUND"
-            }));
-            return;
-          }
-        }
-        break;
+function main(workbook: ExcelScript.Workbook) {
+  const table = workbook.getWorksheet("Sheet1").getTable("OfficeForms.Table");
+
+  // Get headers and data
+  const headers = table.getHeaderRowRange().getValues()[0] as string[];
+  const dataRange = table.getRangeBetweenHeaderAndTotal();
+  const data = dataRange.getValues();
+
+  // Find 'Id' column index
+  const idColIndex = headers.indexOf("Id");
+  if (idColIndex === -1) throw new Error("Couldn't find 'Id' column");
+
+  // STEP 1: Detect RITM Column
+  const ritmRegex = /^RITM\d{4,}$/i;
+  let ritmColIndex = -1;
+  let maxCount = 0;
+
+  headers.forEach((_, colIndex) => {
+    let count = 0;
+    for (let row of data) {
+      const cell = row[colIndex]?.toString().trim();
+      if (ritmRegex.test(cell)) count++;
+    }
+    if (count > maxCount) {
+      maxCount = count;
+      ritmColIndex = colIndex;
+    }
+  });
+
+  if (ritmColIndex === -1) throw new Error("No RITM column detected.");
+  // console.log(`✅ RITM column detected: ${String.fromCharCode(65 + ritmColIndex)} (${headers[ritmColIndex]})`);
+
+  // ✅ STEP 1.5: Clean RITM column values in Excel (trim leading/trailing spaces)
+  for (let i = 0; i < data.length; i++) {
+    const cellValue = data[i][ritmColIndex];
+    if (typeof cellValue === "string") {
+      const trimmed = cellValue.trim();
+      if (cellValue !== trimmed) {
+        dataRange.getCell(i, ritmColIndex).setValue(trimmed); // ✅ Update Excel cell in-place
       }
     }
-  } catch { }
-  
-  console.log(JSON.stringify({status: "ENEW"}));
+  }
+
+  // STEP 2: Group rows by RITM
+  const ritmGroups: Record<string, { rowIndex: number, id: number }[]> = {};
+
+  for (let i = 0; i < data.length; i++) {
+    const row = data[i];
+    const ritmRaw = row[ritmColIndex]?.toString().trim();
+    const idRaw = row[idColIndex]?.toString().trim();
+
+    if (ritmRegex.test(ritmRaw) && !isNaN(Number(idRaw))) {
+      const ritm = ritmRaw.toUpperCase();
+      const id = Number(idRaw);
+      if (!ritmGroups[ritm]) ritmGroups[ritm] = [];
+      ritmGroups[ritm].push({ rowIndex: i, id });
+    }
+  }
+
+  // STEP 3: For each group, print decisions
+  for (const ritm in ritmGroups) {
+    const entries = ritmGroups[ritm];
+    if (entries.length <= 1) continue; // Nothing to strike
+
+    // Sort by ID (ascending)
+    entries.sort((a, b) => a.id - b.id);
+    const keeper = entries[entries.length - 1]; // Max ID is kept
+
+    // console.log(`\n🔍 RITM: ${ritm}`);
+    // console.log(`➡️ Keeping ID: ${keeper.id} (Row ${keeper.rowIndex + 2})`);
+    // console.log(`🗑️ Marking these for strikethrough:`);
+
+    for (let entry of entries) {
+      if (entry.id !== keeper.id) {
+        // console.log(`  - ID: ${entry.id} (Row ${entry.rowIndex + 2})`);
+
+        // Commented action line — uncomment once you're confident
+        const rowRange = dataRange.getRow(entry.rowIndex);
+        rowRange.getFormat().getFill().setColor("red");
+        rowRange.getFormat().getFont().setStrikethrough(true);
+      }
+    }
+  }
+
+  // console.log(`\n✅ Debug pass complete. No changes applied — strike/highlight lines are commented out.`);
 }
