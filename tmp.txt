@@ -1,20 +1,3 @@
-function testFormat(workbook: ExcelScript.Workbook) {
-  const formsTable = workbook.getWorksheet("Sheet1").getTable("OfficeForms.Table");
-  const rowRange = formsTable.getRangeBetweenHeaderAndTotal().getRow(0); // Change 0 to your row index
-  
-  // Check strikethrough on first cell
-  const hasStrikethrough = rowRange.getCell(0, 0).getFormat().getFont().getStrikethrough();
-  
-  // Check color
-  const color = rowRange.getCell(0, 0).getFormat().getFill().getColor();
-  
-  console.log("Strikethrough: " + hasStrikethrough);
-  console.log("Color: " + color);
-  console.log("Is ff0000 or ffff00? " + (color === "ff0000" || color === "ffff00"));
-}
-
-
-
 function main(workbook: ExcelScript.Workbook, ritmId: string) {
   try {
     const outputTable = workbook.getWorksheet("output").getTable("OutputTable");
@@ -33,43 +16,17 @@ function main(workbook: ExcelScript.Workbook, ritmId: string) {
           if (idCell && idCell.toString() === rowId) {
             const rowRange = formsTable.getRangeBetweenHeaderAndTotal().getRow(j);
             
-            // Check strikethrough - check multiple cells
-            let hasStrikethrough = false;
-            for (let k = 0; k < 5; k++) {
-              try {
-                if (rowRange.getCell(0, k).getFormat().getFont().getStrikethrough()) {
-                  hasStrikethrough = true;
-                  break;
-                }
-              } catch { break; }
-            }
+            // Check ONLY strikethrough on first cell (ID cell in column A)
+            const firstCell = rowRange.getCell(0, 0);
+            const hasStrikethrough = firstCell.getFormat().getFont().getStrikethrough();
             
-            // Check color - check multiple cells
-            let isColored = false;
-            for (let k = 0; k < 5; k++) {
-              try {
-                const color = rowRange.getCell(0, k).getFormat().getFill().getColor();
-                if (color === "ff0000" || color === "ffff00") {
-                  isColored = true;
-                  break;
-                }
-              } catch { break; }
-            }
-            
-            // DEBUG OUTPUT (remove after testing)
-            console.log(JSON.stringify({
-              debug: true,
-              striked: hasStrikethrough,
-              colored: isColored,
-              ritmId: ritmId,
-              rowId: rowId
-            }));
-            
-            if (hasStrikethrough && isColored) {
+            // If striked → NEW
+            if (hasStrikethrough) {
               console.log(JSON.stringify({status: "NEW"}));
               return;
             }
             
+            // Not striked → FOUND with email
             const email = formsData[j][3]?.toString() || "";
             console.log(JSON.stringify({
               RITM_ID: ritmId,
