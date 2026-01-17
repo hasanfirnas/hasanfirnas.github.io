@@ -88,7 +88,7 @@ function main(workbook: ExcelScript.Workbook) {
   // THIS SECTION MOVES RED & STRIKETHROUGH ROWS TO BIN TABLE IMMEDIATELY
   
   try {
-    // Get the destination table - Using your exact names
+    // Get the destination table
     const destinationTable = workbook.getWorksheet("Bin").getTable("Bin.Table");
     
     // Get the current data range AFTER formatting has been applied
@@ -104,20 +104,19 @@ function main(workbook: ExcelScript.Workbook) {
       const rowRange = table.getRangeBetweenHeaderAndTotal().getRow(currentRowIndex);
       
       // Check if this row is formatted with red fill and strikethrough
-      // In Excel Script, getColor() returns a hex code like "#FF0000" for red
       const fillColor = rowRange.getFormat().getFill().getColor();
       const isStrikethrough = rowRange.getFormat().getFont().getStrikethrough();
       
-      // Check if it's red (can be "#FF0000" or similar)
-      const isRed = fillColor === "red" || fillColor === "#FF0000" || fillColor === "#FF3333" || fillColor.startsWith("#FF");
+      // Check if it's red
+      const isRed = fillColor === "red" || fillColor === "#FF0000";
       
       // 🚀 THIS LINE MOVES EACH RED & STRIKETHROUGH ROW ONE BY ONE
       if (isRed && isStrikethrough) {
         // Step 1: Get the row values
         const rowValues = rowRange.getValues()[0];
         
-        // Step 2: Add to destination table
-        destinationTable.addRowsAt(-1, [rowValues]); // Using addRowsAt instead of addRow
+        // Step 2: Add to destination table - FIXED METHOD NAME
+        destinationTable.addRowsAt(-1, [rowValues]);
         
         // Step 3: Immediately delete from source table
         table.deleteRowsAt(currentRowIndex, 1);
@@ -127,9 +126,6 @@ function main(workbook: ExcelScript.Workbook) {
     // console.log(`✅ One-by-one movement completed`);
     
   } catch (error) {
-    // Let's see what the actual error is
-    // console.log("Error details: " + error);
-    
     // More specific error handling
     try {
       // First, check if the sheet exists
@@ -152,28 +148,8 @@ function main(workbook: ExcelScript.Workbook) {
         throw new Error(`❌ Table named 'Bin.Table' not found in 'Bin' sheet. Available tables: ${allTables.map(t => t.getName()).join(", ")}`);
       }
     } catch (innerError) {
-      // console.log(innerError.message);
       // Just continue without moving if destination doesn't exist
     }
   }
   // 🚀 ============= END OF NEW FUNCTIONALITY ============= 🚀
 }
-
-
-
-
-
-
-
-
-
-
-// Temporary debug - remove after testing
-const allSheets = workbook.getWorksheets();
-allSheets.forEach(sheet => {
-  console.log("Sheet: " + sheet.getName());
-  const tables = sheet.getTables();
-  tables.forEach(table => {
-    console.log("  Table: " + table.getName());
-  });
-});
