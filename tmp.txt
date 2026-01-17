@@ -86,19 +86,30 @@ function main(workbook: ExcelScript.Workbook) {
 
   // 🚀 ============= NEW FUNCTIONALITY: ONE-BY-ONE MOVEMENT ============= 🚀
   // THIS SECTION MOVES RED & STRIKETHROUGH ROWS TO BIN TABLE IMMEDIATELY
+  
   try {
-    // Get the destination table
+    // Get the destination table - Using your exact names
     const destinationTable = workbook.getWorksheet("Bin").getTable("Bin.Table");
     
-    // We need to process from BOTTOM to TOP because deleting rows changes indices
+    // Get the current data range AFTER formatting has been applied
     const sourceDataRange = table.getRangeBetweenHeaderAndTotal();
-    const totalRows = table.getTotalRowCount() - 1; // -1 to exclude total row if exists
     
-    // Start from the bottom and go up
-    for (let rowIndex = totalRows - 1; rowIndex >= 0; rowIndex--) {
-      const rowRange = sourceDataRange.getRow(rowIndex);
-      const isRed = rowRange.getFormat().getFill().getColor() === "red";
+    // Get number of rows in the table (excluding header)
+    const rowCount = table.getRangeBetweenHeaderAndTotal().getRowCount();
+    
+    // We need to process from BOTTOM to TOP because deleting rows changes indices
+    // Start from the last row and go up to row 0
+    for (let currentRowIndex = rowCount - 1; currentRowIndex >= 0; currentRowIndex--) {
+      // Get the row at the current index (refreshed each time because table changes)
+      const rowRange = table.getRangeBetweenHeaderAndTotal().getRow(currentRowIndex);
+      
+      // Check if this row is formatted with red fill and strikethrough
+      // In Excel Script, getColor() returns a hex code like "#FF0000" for red
+      const fillColor = rowRange.getFormat().getFill().getColor();
       const isStrikethrough = rowRange.getFormat().getFont().getStrikethrough();
+      
+      // Check if it's red (can be "#FF0000" or similar)
+      const isRed = fillColor === "red" || fillColor === "#FF0000" || fillColor === "#FF3333" || fillColor.startsWith("#FF");
       
       // 🚀 THIS LINE MOVES EACH RED & STRIKETHROUGH ROW ONE BY ONE
       if (isRed && isStrikethrough) {
@@ -106,21 +117,63 @@ function main(workbook: ExcelScript.Workbook) {
         const rowValues = rowRange.getValues()[0];
         
         // Step 2: Add to destination table
-        destinationTable.addRow(-1, rowValues);
+        destinationTable.addRowsAt(-1, [rowValues]); // Using addRowsAt instead of addRow
         
         // Step 3: Immediately delete from source table
-        table.deleteRowsAt(rowIndex, 1);
-        
-        // Small pause to ensure Excel processes the change (optional)
-        // workbook.getApplication().suspendScreenUpdatingUntilNextSync();
+        table.deleteRowsAt(currentRowIndex, 1);
       }
     }
     
     // console.log(`✅ One-by-one movement completed`);
     
   } catch (error) {
-    // If destination table doesn't exist, just continue
-    // console.log("⚠️ Destination table not found. Skipping movement.");
+    // Let's see what the actual error is
+    // console.log("Error details: " + error);
+    
+    // More specific error handling
+    try {
+      // First, check if the sheet exists
+      const binSheet = workbook.getWorksheet("Bin");
+      if (!binSheet) {
+        throw new Error("❌ Sheet named 'Bin' not found. Please create a sheet named 'Bin' in your workbook.");
+      }
+      
+      // Check if the table exists
+      const allTables = binSheet.getTables();
+      let tableExists = false;
+      for (let i = 0; i < allTables.length; i++) {
+        if (allTables[i].getName() === "Bin.Table") {
+          tableExists = true;
+          break;
+        }
+      }
+      
+      if (!tableExists) {
+        throw new Error(`❌ Table named 'Bin.Table' not found in 'Bin' sheet. Available tables: ${allTables.map(t => t.getName()).join(", ")}`);
+      }
+    } catch (innerError) {
+      // console.log(innerError.message);
+      // Just continue without moving if destination doesn't exist
+    }
   }
   // 🚀 ============= END OF NEW FUNCTIONALITY ============= 🚀
 }
+
+
+
+
+
+
+
+
+
+
+// Temporary debug - remove after testing
+const allSheets = workbook.getWorksheets();
+allSheets.forEach(sheet => {
+  console.log("Sheet: " + sheet.getName());
+  const tables = sheet.getTables();
+  tables.forEach(table => {
+    console.log("  Table: " + table.getName());
+  });
+});
