@@ -1,28 +1,34 @@
 function main(workbook: ExcelScript.Workbook) {
 
+  // =========================
+  // CONFIG
+  // =========================
   const SOURCE_SHEET = "Sheet1";
   const SOURCE_TABLE = "OfficeForms.Table";
   const BIN_SHEET = "Bin";
   const BIN_TABLE = "Bin.Table";
 
+  // =========================
+  // LOAD TABLES
+  // =========================
   const sourceTable = workbook.getWorksheet(SOURCE_SHEET).getTable(SOURCE_TABLE);
   const binTable = workbook.getWorksheet(BIN_SHEET).getTable(BIN_TABLE);
 
   const headers = sourceTable.getHeaderRowRange().getValues()[0] as string[];
   const dataRange = sourceTable.getRangeBetweenHeaderAndTotal();
-  const data = dataRange.getValues();
+  const data = dataRange.getValues() as (string | number | boolean)[][];
 
-  // -------------------------
-  // Find Id column
-  // -------------------------
+  // =========================
+  // FIND Id COLUMN
+  // =========================
   const idColIndex = headers.indexOf("Id");
   if (idColIndex === -1) {
-    throw new Error("Id column not found");
+    throw new Error("❌ 'Id' column not found");
   }
 
-  // -------------------------
-  // Detect RITM column
-  // -------------------------
+  // =========================
+  // DETECT RITM COLUMN
+  // =========================
   const ritmRegex = /^RITM\d{4,}$/i;
   let ritmColIndex = -1;
   let maxCount = 0;
@@ -30,8 +36,10 @@ function main(workbook: ExcelScript.Workbook) {
   headers.forEach((_, colIndex) => {
     let count = 0;
     for (const row of data) {
-      const cell = row[colIndex]?.toString().trim();
-      if (ritmRegex.test(cell)) count++;
+      const cell = row[colIndex];
+      if (typeof cell === "string" && ritmRegex.test(cell.trim())) {
+        count++;
+      }
     }
     if (count > maxCount) {
       maxCount = count;
@@ -40,41 +48,59 @@ function main(workbook: ExcelScript.Workbook) {
   });
 
   if (ritmColIndex === -1) {
-    throw new Error("RITM column not detected");
+    throw new Error("❌ RITM column could not be detected");
   }
 
-  // -------------------------
-  // Normalize RITM values
-  // -------------------------
+  // =========================
+  // TRIM RITM VALUES IN DATA
+  // =========================
   for (let i = 0; i < data.length; i++) {
-    const v = data[i][ritmColIndex];
-    if (typeof v === "string") {
-      data[i][ritmColIndex] = v.trim();
+    const val = data[i][ritmColIndex];
+    if (typeof val === "string") {
+      data[i][ritmColIndex] = val.trim();
     }
   }
 
-  // -------------------------
-  // Group by RITM
-  // -------------------------
-  const groups: Record<string, { row: any[]; id: number }[]> = {};
+  // =========================
+  // GROUP ROWS BY RITM
+  // =========================
+  type RowEntry = {
+    row: (string | number | boolean)[];
+    id: number;
+  };
+
+  const groups: Record<string, RowEntry[]> = {};
 
   for (const row of data) {
-    const ritm = row[ritmColIndex]?.toString().trim();
-    const idRaw = row[idColIndex]?.toString().trim();
+    const ritmCell = row[ritmColIndex];
+    const idCell = row[idColIndex];
 
-    if (ritmRegex.test(ritm) && !isNaN(Number(idRaw))) {
-      const key = ritm.toUpperCase();
-      if (!groups[key]) groups[key] = [];
-      groups[key].push({ row, id: Number(idRaw) });
+    if (
+      typeof ritmCell === "string" &&
+      typeof idCell !== "boolean" &&
+      ritmRegex.test(ritmCell.trim()) &&
+      !isNaN(Number(idCell))
+    ) {
+      const ritmKey = ritmCell.trim().toUpperCase();
+      const idValue = Number(idCell);
+
+      if (!groups[ritmKey]) {
+        groups[ritmKey] = [];
+      }
+
+      groups[ritmKey].push({
+        row: row,
+        id: idValue
+      });
     }
   }
 
-  const rowsToKeep: any[][] = [];
-  const rowsToBin: any[][] = [];
+  // =========================
+  // SPLIT KEEP vs BIN
+  // =========================
+  const rowsToKeep: (string | number | boolean)[][] = [];
+  const rowsToBin: (string | number | boolean)[][] = [];
 
-  // -------------------------
-  // Decide keep vs bin
-  // -------------------------
   for (const ritm in groups) {
     const entries = groups[ritm];
 
@@ -83,6 +109,7 @@ function main(workbook: ExcelScript.Workbook) {
       continue;
     }
 
+    // keep highest Id
     entries.sort((a, b) => a.id - b.id);
     const keeper = entries[entries.length - 1];
 
@@ -95,16 +122,16 @@ function main(workbook: ExcelScript.Workbook) {
     }
   }
 
-  // -------------------------
-  // Move duplicates to Bin
-  // -------------------------
+  // =========================
+  // MOVE TO BIN TABLE
+  // =========================
   for (const row of rowsToBin) {
     binTable.addRow(-1, row);
   }
 
-  // -------------------------
-  // Rebuild source table
-  // -------------------------
+  // =========================
+  // REBUILD SOURCE TABLE
+  // =========================
   if (data.length > 0) {
     sourceTable.clearRows();
   }
