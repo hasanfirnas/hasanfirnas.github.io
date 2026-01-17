@@ -1,155 +1,76 @@
 function main(workbook: ExcelScript.Workbook) {
-  const table = workbook.getWorksheet("Sheet1").getTable("OfficeForms.Table");
+  const sourceSheet = workbook.getWorksheet("Sheet1");
+  const sourceTable = sourceSheet.getTable("OfficeForms.Table");
+  const binSheet = workbook.getWorksheet("Bin");
+  const binTable = binSheet.getTable("Bin.Table");
 
-  // Get headers and data
-  const headers = table.getHeaderRowRange().getValues()[0] as string[];
-  const dataRange = table.getRangeBetweenHeaderAndTotal();
+  // 1. Get Data
+  const dataRange = sourceTable.getRangeBetweenHeaderAndTotal();
   const data = dataRange.getValues();
-
-  // Find 'Id' column index
+  const headers = sourceTable.getHeaderRowRange().getValues()[0] as string[];
+  
   const idColIndex = headers.indexOf("Id");
-  if (idColIndex === -1) throw new Error("Couldn't find 'Id' column");
-
-  // STEP 1: Detect RITM Column
   const ritmRegex = /^RITM\d{4,}$/i;
+
+  // 2. Detect RITM Column (Dynamic)
   let ritmColIndex = -1;
   let maxCount = 0;
-
-  headers.forEach((_, colIndex) => {
+  headers.forEach((_, colIdx) => {
     let count = 0;
     for (let row of data) {
-      const cell = row[colIndex]?.toString().trim();
-      if (ritmRegex.test(cell)) count++;
+      if (ritmRegex.test(row[colIdx]?.toString().trim())) count++;
     }
     if (count > maxCount) {
       maxCount = count;
-      ritmColIndex = colIndex;
+      ritmColIndex = colIdx;
     }
   });
 
-  if (ritmColIndex === -1) throw new Error("No RITM column detected.");
-  // console.log(`✅ RITM column detected: ${String.fromCharCode(65 + ritmColIndex)} (${headers[ritmColIndex]})`);
+  if (ritmColIndex === -1) return;
 
-  // ✅ STEP 1.5: Clean RITM column values in Excel (trim leading/trailing spaces)
-  for (let i = 0; i < data.length; i++) {
-    const cellValue = data[i][ritmColIndex];
-    if (typeof cellValue === "string") {
-      const trimmed = cellValue.trim();
-      if (cellValue !== trimmed) {
-        dataRange.getCell(i, ritmColIndex).setValue(trimmed); // ✅ Update Excel cell in-place
-      }
-    }
-  }
-
-  // STEP 2: Group rows by RITM
-  const ritmGroups: Record<string, { rowIndex: number, id: number }[]> = {};
-
-  for (let i = 0; i < data.length; i++) {
-    const row = data[i];
-    const ritmRaw = row[ritmColIndex]?.toString().trim();
-    const idRaw = row[idColIndex]?.toString().trim();
-
-    if (ritmRegex.test(ritmRaw) && !isNaN(Number(idRaw))) {
-      const ritm = ritmRaw.toUpperCase();
-      const id = Number(idRaw);
+  // 3. Logic: Find Duplicates (Keep highest ID)
+  const ritmGroups: Record<string, { rowIndex: number, id: number, values: any[] }[]> = {};
+  
+  data.forEach((row, index) => {
+    const ritm = row[ritmColIndex]?.toString().trim().toUpperCase();
+    const id = Number(row[idColIndex]);
+    if (ritm && !isNaN(id)) {
       if (!ritmGroups[ritm]) ritmGroups[ritm] = [];
-      ritmGroups[ritm].push({ rowIndex: i, id });
+      ritmGroups[ritm].push({ rowIndex: index, id, values: row });
     }
-  }
+  });
 
-  // STEP 3: For each group, print decisions
+  let rowsToMove: any[][] = [];
+  let indicesToDelete: number[] = [];
+
   for (const ritm in ritmGroups) {
     const entries = ritmGroups[ritm];
-    if (entries.length <= 1) continue; // Nothing to strike
+    if (entries.length <= 1) continue;
 
-    // Sort by ID (ascending)
+    // Sort by ID ascending
     entries.sort((a, b) => a.id - b.id);
-    const keeper = entries[entries.length - 1]; // Max ID is kept
-
-    // console.log(`\n🔍 RITM: ${ritm}`);
-    // console.log(`➡️ Keeping ID: ${keeper.id} (Row ${keeper.rowIndex + 2})`);
-    // console.log(`🗑️ Marking these for strikethrough:`);
-
-    for (let entry of entries) {
-      if (entry.id !== keeper.id) {
-        // console.log(`  - ID: ${entry.id} (Row ${entry.rowIndex + 2})`);
-
-        // Commented action line — uncomment once you're confident
-        const rowRange = dataRange.getRow(entry.rowIndex);
-        rowRange.getFormat().getFill().setColor("red");
-        rowRange.getFormat().getFont().setStrikethrough(true);
-      }
+    
+    // The last one is the keeper (highest ID), all others move to Bin
+    for (let i = 0; i < entries.length - 1; i++) {
+      rowsToMove.push(entries[i].values);
+      indicesToDelete.push(entries[i].rowIndex);
     }
   }
 
-  // console.log(`\n✅ Debug pass complete. No changes applied — strike/highlight lines are commented out.`);
+  // 4. PERFORM THE MOVEMENT (The Fast Way)
+  if (rowsToMove.length > 0) {
+    // A. Add all rows to Bin Table at once (Super Fast)
+    binTable.addRows(null, rowsToMove);
 
-  // 🚀 ============= NEW FUNCTIONALITY: ONE-BY-ONE MOVEMENT ============= 🚀
-  // THIS SECTION MOVES RED & STRIKETHROUGH ROWS TO BIN TABLE IMMEDIATELY
-  
-  try {
-    // Get the destination table
-    const destinationTable = workbook.getWorksheet("Bin").getTable("Bin.Table");
-    
-    // Get the current data range AFTER formatting has been applied
-    const sourceDataRange = table.getRangeBetweenHeaderAndTotal();
-    
-    // Get number of rows in the table (excluding header)
-    const rowCount = table.getRangeBetweenHeaderAndTotal().getRowCount();
-    
-    // We need to process from BOTTOM to TOP because deleting rows changes indices
-    // Start from the last row and go up to row 0
-    for (let currentRowIndex = rowCount - 1; currentRowIndex >= 0; currentRowIndex--) {
-      // Get the row at the current index (refreshed each time because table changes)
-      const rowRange = table.getRangeBetweenHeaderAndTotal().getRow(currentRowIndex);
-      
-      // Check if this row is formatted with red fill and strikethrough
-      const fillColor = rowRange.getFormat().getFill().getColor();
-      const isStrikethrough = rowRange.getFormat().getFont().getStrikethrough();
-      
-      // Check if it's red
-      const isRed = fillColor === "red" || fillColor === "#FF0000";
-      
-      // 🚀 THIS LINE MOVES EACH RED & STRIKETHROUGH ROW ONE BY ONE
-      if (isRed && isStrikethrough) {
-        // Step 1: Get the row values
-        const rowValues = rowRange.getValues()[0];
-        
-        // Step 2: Add to destination table - FIXED METHOD NAME
-        destinationTable.addRowsAt(-1, [rowValues]);
-        
-        // Step 3: Immediately delete from source table
-        table.deleteRowsAt(currentRowIndex, 1);
-      }
-    }
-    
-    // console.log(`✅ One-by-one movement completed`);
-    
-  } catch (error) {
-    // More specific error handling
-    try {
-      // First, check if the sheet exists
-      const binSheet = workbook.getWorksheet("Bin");
-      if (!binSheet) {
-        throw new Error("❌ Sheet named 'Bin' not found. Please create a sheet named 'Bin' in your workbook.");
-      }
-      
-      // Check if the table exists
-      const allTables = binSheet.getTables();
-      let tableExists = false;
-      for (let i = 0; i < allTables.length; i++) {
-        if (allTables[i].getName() === "Bin.Table") {
-          tableExists = true;
-          break;
-        }
-      }
-      
-      if (!tableExists) {
-        throw new Error(`❌ Table named 'Bin.Table' not found in 'Bin' sheet. Available tables: ${allTables.map(t => t.getName()).join(", ")}`);
-      }
-    } catch (innerError) {
-      // Just continue without moving if destination doesn't exist
-    }
+    // B. Delete rows from Source Table
+    // We sort indices descending to delete from bottom-to-top so the table doesn't shift
+    indicesToDelete.sort((a, b) => b - a);
+    indicesToDelete.forEach(index => {
+      sourceTable.deleteRowsAt(index, 1);
+    });
+
+    console.log(`✅ Successfully moved ${rowsToMove.length} duplicates to Bin.`);
+  } else {
+    console.log("No duplicates found.");
   }
-  // 🚀 ============= END OF NEW FUNCTIONALITY ============= 🚀
 }
