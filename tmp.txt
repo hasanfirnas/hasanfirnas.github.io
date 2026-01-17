@@ -1,157 +1,59 @@
 function main(workbook: ExcelScript.Workbook, ritmId: string) {
-  // Constants - Update these if your sheet/table names are different
-  const OUTPUT_SHEET_NAME = "output";
-  const OUTPUT_TABLE_NAME = "OutputTable";
-  const FORMS_SHEET_NAME = "Sheet1";
-  const FORMS_TABLE_NAME = "OfficeForms.Table";
+  const outputSheet = workbook.getWorksheet("output");
+  const formsSheet = workbook.getWorksheet("Sheet1");
+  const outputTable = outputSheet.getTable("OutputTable");
+  const formsTable = formsSheet.getTable("OfficeForms.Table");
   
-  console.log("Starting RITM check for: " + ritmId);
+  // Search for RITM in OutputTable column C
+  const outputData = outputTable.getRangeBetweenHeaderAndTotal().getValues();
   
-  try {
-    // Try to get the sheets
-    const outputSheet = workbook.getWorksheet(OUTPUT_SHEET_NAME);
-    const formsSheet = workbook.getWorksheet(FORMS_SHEET_NAME);
-    
-    if (!outputSheet) {
-      console.error("ERROR: Sheet '" + OUTPUT_SHEET_NAME + "' not found");
-      return "ERROR: Sheet '" + OUTPUT_SHEET_NAME + "' not found";
-    }
-    
-    if (!formsSheet) {
-      console.error("ERROR: Sheet '" + FORMS_SHEET_NAME + "' not found");
-      return "ERROR: Sheet '" + FORMS_SHEET_NAME + "' not found";
-    }
-    
-    console.log("✓ Sheets found successfully");
-    
-    // Try to get the tables
-    const outputTable = outputSheet.getTable(OUTPUT_TABLE_NAME);
-    const formsTable = formsSheet.getTable(FORMS_TABLE_NAME);
-    
-    if (!outputTable) {
-      console.error("ERROR: Table '" + OUTPUT_TABLE_NAME + "' not found");
-      return "ERROR: Table '" + OUTPUT_TABLE_NAME + "' not found";
-    }
-    
-    if (!formsTable) {
-      console.error("ERROR: Table '" + FORMS_TABLE_NAME + "' not found");
-      return "ERROR: Table '" + FORMS_TABLE_NAME + "' not found";
-    }
-    
-    console.log("✓ Tables found successfully");
-    
-    // Get RITM column (Column C) from OutputTable
-    const outputData = outputTable.getRangeBetweenHeaderAndTotal().getValues();
-    const ritmColumnIndex = 2; // Column C is index 2 (0-based: A=0, B=1, C=2)
-    
-    console.log("Searching for RITM ID in OutputTable...");
-    
-    // Search for RITM ID in OutputTable
-    let foundRowIndex = -1;
-    let rowId = "";
-    
-    for (let i = 0; i < outputData.length; i++) {
-      const cellValue = outputData[i][ritmColumnIndex];
-      if (cellValue && cellValue.toString().includes(ritmId)) {
-        foundRowIndex = i;
-        // Get the ID from column A of the same row
-        rowId = outputData[i][0]?.toString() || "";
-        console.log("✓ RITM found at row index: " + i + ", Row ID: " + rowId);
-        break;
+  for (let i = 0; i < outputData.length; i++) {
+    if (outputData[i][2] && outputData[i][2].toString().includes(ritmId)) {
+      const rowId = outputData[i][0]?.toString() || "";
+      
+      // Search for this rowId in FormsTable
+      const formsData = formsTable.getRangeBetweenHeaderAndTotal().getValues();
+      
+      for (let j = 0; j < formsData.length; j++) {
+        if (formsData[j][0] && formsData[j][0].toString() === rowId) {
+          // Check if row is striked and colored
+          const rowRange = formsTable.getRangeBetweenHeaderAndTotal().getRow(j);
+          let hasStrikethrough = false;
+          
+          // Check strikethrough
+          for (let col = 0; col < 10; col++) {
+            try {
+              if (rowRange.getCell(0, col).getFormat().getFont().getStrikethrough()) {
+                hasStrikethrough = true;
+                break;
+              }
+            } catch { break; }
+          }
+          
+          // Check color
+          const cellColor = rowRange.getCell(0, 0).getFormat().getFill().getColor();
+          const isColored = (cellColor === "ff0000" || cellColor === "ffff00");
+          
+          if (hasStrikethrough && isColored) {
+            console.log(JSON.stringify({status: "NEW"}));
+            return;
+          }
+          
+          // Not striked, get email from column D
+          const email = formsData[j][3]?.toString() || "";
+          console.log(JSON.stringify({
+            RITM_ID: ritmId,
+            ID: rowId,
+            Email: email,
+            status: "FOUND"
+          }));
+          return;
+        }
       }
+      break;
     }
-    
-    // Scenario 1: RITM not found in OutputTable
-    if (foundRowIndex === -1) {
-      console.log("RITM not found - Output: ENEW");
-      return JSON.stringify({
-        status: "ENEW"
-      });
-    }
-    
-    // Scenario 2: RITM found - now check FormsTable
-    console.log("RITM found. Checking FormsTable for Row ID: " + rowId);
-    const formsData = formsTable.getRangeBetweenHeaderAndTotal().getValues();
-    const idColumnIndex = 0; // Column A for ID
-    
-    // Search for the rowId in FormsTable
-    let formsRowIndex = -1;
-    
-    for (let i = 0; i < formsData.length; i++) {
-      const cellValue = formsData[i][idColumnIndex];
-      if (cellValue && cellValue.toString() === rowId) {
-        formsRowIndex = i;
-        console.log("✓ Row ID found in FormsTable at index: " + i);
-        break;
-      }
-    }
-    
-    if (formsRowIndex === -1) {
-      console.log("ERROR: Row ID not found in Forms table");
-      return JSON.stringify({
-        status: "ERROR",
-        message: "ID not found in Forms table"
-      });
-    }
-    
-    // Get the specific row range to check formatting
-    const formsTableRange = formsTable.getRangeBetweenHeaderAndTotal();
-    const targetRowRange = formsTableRange.getRow(formsRowIndex);
-    const rowValues = targetRowRange.getValues();
-    
-    // Check if the row has strikethrough formatting
-    let hasStrikethrough = false;
-    console.log("Checking for strikethrough formatting...");
-    
-    // Check each cell in the row for strikethrough
-    for (let col = 0; col < rowValues[0].length; col++) {
-      const cell = targetRowRange.getCell(0, col);
-      const font = cell.getFormat().getFont();
-      if (font.getStrikethrough()) {
-        hasStrikethrough = true;
-        console.log("✓ Strikethrough found in column: " + col);
-        break;
-      }
-    }
-    
-    // Get the fill color of the first cell in the row (for color check)
-    const firstCell = targetRowRange.getCell(0, 0);
-    const fillColor = firstCell.getFormat().getFill().getColor();
-    console.log("Row fill color: " + fillColor);
-    
-    // Check if color is exactly ff0000 (red) or ffff00 (yellow)
-    const isColored = (fillColor === "ff0000" || fillColor === "ffff00");
-    console.log("Is colored (red/yellow): " + isColored);
-    
-    // Check if row is striked off AND colored (red or yellow)
-    if (hasStrikethrough && isColored) {
-      console.log("Row is striked and colored - Output: NEW");
-      return JSON.stringify({
-        status: "NEW"
-      });
-    }
-    
-    // If not striked off, get email from column D (index 3)
-    const emailColumnIndex = 3; // Column D is index 3
-    const email = formsData[formsRowIndex][emailColumnIndex]?.toString() || "";
-    console.log("✓ Email found: " + email);
-    
-    // Return all information in JSON format
-    const result = {
-      RITM_ID: ritmId,
-      ID: rowId,
-      Email: email,
-      status: "FOUND"
-    };
-    
-    console.log("✓ Returning JSON: " + JSON.stringify(result));
-    return JSON.stringify(result);
-    
-  } catch (error) {
-    console.error("Unexpected error: " + error);
-    return JSON.stringify({
-      status: "ERROR",
-      message: "Unexpected error: " + error
-    });
   }
+  
+  // RITM not found
+  console.log(JSON.stringify({status: "NEW"}));
 }
