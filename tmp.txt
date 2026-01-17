@@ -12,3 +12,78 @@ function testFormat(workbook: ExcelScript.Workbook) {
   console.log("Color: " + color);
   console.log("Is ff0000 or ffff00? " + (color === "ff0000" || color === "ffff00"));
 }
+
+
+
+function main(workbook: ExcelScript.Workbook, ritmId: string) {
+  try {
+    const outputTable = workbook.getWorksheet("output").getTable("OutputTable");
+    const formsTable = workbook.getWorksheet("Sheet1").getTable("OfficeForms.Table");
+    
+    const outputData = outputTable.getRangeBetweenHeaderAndTotal().getValues();
+    
+    for (let i = 0; i < outputData.length; i++) {
+      const ritmCell = outputData[i][2];
+      if (ritmCell && ritmCell.toString().includes(ritmId)) {
+        const rowId = outputData[i][0]?.toString() || "";
+        const formsData = formsTable.getRangeBetweenHeaderAndTotal().getValues();
+        
+        for (let j = 0; j < formsData.length; j++) {
+          const idCell = formsData[j][0];
+          if (idCell && idCell.toString() === rowId) {
+            const rowRange = formsTable.getRangeBetweenHeaderAndTotal().getRow(j);
+            
+            // Check strikethrough - check multiple cells
+            let hasStrikethrough = false;
+            for (let k = 0; k < 5; k++) {
+              try {
+                if (rowRange.getCell(0, k).getFormat().getFont().getStrikethrough()) {
+                  hasStrikethrough = true;
+                  break;
+                }
+              } catch { break; }
+            }
+            
+            // Check color - check multiple cells
+            let isColored = false;
+            for (let k = 0; k < 5; k++) {
+              try {
+                const color = rowRange.getCell(0, k).getFormat().getFill().getColor();
+                if (color === "ff0000" || color === "ffff00") {
+                  isColored = true;
+                  break;
+                }
+              } catch { break; }
+            }
+            
+            // DEBUG OUTPUT (remove after testing)
+            console.log(JSON.stringify({
+              debug: true,
+              striked: hasStrikethrough,
+              colored: isColored,
+              ritmId: ritmId,
+              rowId: rowId
+            }));
+            
+            if (hasStrikethrough && isColored) {
+              console.log(JSON.stringify({status: "NEW"}));
+              return;
+            }
+            
+            const email = formsData[j][3]?.toString() || "";
+            console.log(JSON.stringify({
+              RITM_ID: ritmId,
+              ID: rowId,
+              Email: email,
+              status: "FOUND"
+            }));
+            return;
+          }
+        }
+        break;
+      }
+    }
+  } catch { }
+  
+  console.log(JSON.stringify({status: "ENEW"}));
+}
