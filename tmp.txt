@@ -1,110 +1,373 @@
-function main(workbook: ExcelScript.Workbook, ritmInput: string): string {
+# ============================================
+# Excel Read-Only RITM Duplicate Validator
+# ============================================
+# Purpose: Validate RITM submissions against existing Excel data
+# Usage:   .\Validate-RITM.ps1 -ExcelPath "C:\Path\To\File.xlsx" -RITM "RITM123456"
+# ============================================
 
-  /* ================= CONFIG ================= */
-  const OUTPUT_TABLE_NAME = "OutputTable";
-  const FORMS_TABLE_NAME  = "OfficeForms.Table";
+param(
+    [Parameter(Mandatory=$true)]
+    [string]$ExcelPath,
+    
+    [Parameter(Mandatory=$true)]
+    [string]$RITM,
+    
+    [Parameter(Mandatory=$false)]
+    [switch]$ReturnJson
+)
 
-  const COL_ID = 0;      // Column A
-  const COL_RITM = 2;    // Column C
-  const COL_EMAIL = 3;   // Column D
-  /* ========================================== */
+# ============================================
+# HELPER FUNCTIONS
+# ============================================
 
-  if (!ritmInput || ritmInput.trim() === "") {
-    return JSON.stringify({ status: "error", message: "Empty RITM input" });
-  }
-
-  const ritm = ritmInput.trim().toLowerCase();
-
-  /* ---------- SAFE TABLE FETCH ---------- */
-  const tables = workbook.getTables();
-
-  const outputTable = tables.find(t => t.getName() === OUTPUT_TABLE_NAME);
-  if (!outputTable) {
-    return JSON.stringify({
-      status: "error",
-      message: `Table not found: ${OUTPUT_TABLE_NAME}`
-    });
-  }
-
-  const formsTable = tables.find(t => t.getName() === FORMS_TABLE_NAME);
-  if (!formsTable) {
-    return JSON.stringify({
-      status: "error",
-      message: `Table not found: ${FORMS_TABLE_NAME}`
-    });
-  }
-
-  /* ---------- STEP 1: CHECK OUTPUT TABLE ---------- */
-  const outputRange = outputTable.getRangeBetweenHeaderAndTotal();
-  const outputValues = outputRange.getValues();
-
-  const matchedIds: string[] = [];
-
-  for (let i = 0; i < outputValues.length; i++) {
-    const rowRitm = String(outputValues[i][COL_RITM] ?? "")
-      .trim()
-      .toLowerCase();
-
-    if (rowRitm === ritm) {
-      matchedIds.push(String(outputValues[i][COL_ID]).trim());
+function Test-ExcelFile {
+    param([string]$Path)
+    
+    if (-not (Test-Path $Path)) {
+        throw "Excel file not found: $Path"
     }
-  }
+    
+    $extension = [System.IO.Path]::GetExtension($Path)
+    if ($extension -notin '.xlsx', '.xlsm', '.xls') {
+        throw "Unsupported file format. Please provide .xlsx, .xlsm, or .xls file"
+    }
+}
 
-  if (matchedIds.length === 0) {
-    return JSON.stringify({ status: "new" });
-  }
-
-  /* ---------- STEP 2: CHECK FORMS TABLE ---------- */
-  const formsRange = formsTable.getRangeBetweenHeaderAndTotal();
-  const formsValues = formsRange.getValues();
-  const sheet = formsTable.getWorksheet();
-
-  for (let i = 0; i < formsValues.length; i++) {
-    const id = String(formsValues[i][COL_ID] ?? "").trim();
-    if (!matchedIds.includes(id)) continue;
-
-    const absoluteRow =
-      formsRange.getRowIndex() + i;
-
-    // 👇 ONE CELL IS ENOUGH (row-level formatting)
-    const checkCell = sheet.getRangeByIndexes(
-      absoluteRow,
-      COL_ID,
-      1,
-      1
-    );
-
-    let isStruck = false;
-    let isColored = false;
-
+function Get-TableRange {
+    param(
+        [object]$Worksheet,
+        [string]$TableName
+    )
+    
     try {
-      isStruck = checkCell.getFormat().getFont().getStrikethrough() === true;
-    } catch {}
+        $table = $Worksheet.ListObjects.Item($TableName)
+        return $table
+    }
+    catch {
+        throw "Table '$TableName' not found in worksheet '$($Worksheet.Name)'"
+    }
+}
 
-    try {
-      const color = checkCell.getFormat().getFill().getColor();
-      isColored = typeof color === "string" && color !== "";
-    } catch {}
-
-    // ACTIVE DUPLICATE
-    if (!isStruck && !isColored) {
-      const email = String(formsValues[i][COL_EMAIL] ?? "").trim();
-
-      return JSON.stringify({
-        status: "duplicate_active",
-        details: {
-          id,
-          ritm: ritmInput,
-          email,
-          rowNumber: absoluteRow + 1
+function Get-TableData {
+    param(
+        [object]$Table,
+        [string]$RITMValue
+    )
+    
+    $data = @()
+    $ritmColumn = $null
+    $idColumn = $null
+    
+    # Find RITM column (case-insensitive search)
+    foreach ($column in $Table.ListColumns) {
+        if ($column.Name -like "*RITM*" -or $column.Index -eq 3) { # Column C = index 3
+            $ritmColumn = $column.Index
         }
-      });
+        if ($column.Name -like "*ID*" -or $column.Index -eq 1) { # Column A = index 1
+            $idColumn = $column.Index
+        }
     }
-  }
+    
+    if (-not $ritmColumn) {
+        throw "RITM column not found in table"
+    }
+    
+    if (-not $idColumn) {
+        throw "ID column not found in table"
+    }
+    
+    # Scan through table rows
+    for ($i = 1; $i -le $Table.ListRows.Count; $i++) {
+        $row = $Table.ListRows.Item($i)
+        $cellValue = $row.Range.Cells(1, $ritmColumn).Text
+        
+        if ($cellValue -eq $RITMValue -or 
+            $cellValue -replace '\s', '' -eq $RITMValue -replace '\s', '') {
+            
+            $idValue = $row.Range.Cells(1, $idColumn).Text
+            $data += @{
+                RowIndex = $i
+                ID = $idValue
+                RITM = $cellValue
+                RowObject = $row
+            }
+        }
+    }
+    
+    return $data
+}
 
-  /* ---------- ONLY REJECTED ROWS EXIST ---------- */
-  return JSON.stringify({
-    status: "new",
-    reason: "all_previous_entries_rejected"
-  });
+function Test-RowIsActive {
+    param(
+        [object]$Row,
+        [int]$CheckCellColumn = 1  # Check first cell in row (Column A)
+    )
+    
+    $cell = $Row.Range.Cells(1, $CheckCellColumn)
+    
+    # Check for strikethrough
+    $isStruckThrough = $cell.Font.Strikethrough
+    
+    # Check for fill color (any non-default fill)
+    # Note: -4142 = xlNone (no fill), 0 = xlColorIndexNone
+    $hasColor = ($cell.Interior.ColorIndex -ne -4142 -and $cell.Interior.ColorIndex -ne 0)
+    
+    # Active = NOT struck through AND NOT colored
+    return (-not $isStruckThrough -and -not $hasColor)
+}
+
+function Get-EmailFromOfficeFormsRow {
+    param(
+        [object]$Row,
+        [object]$Table
+    )
+    
+    $emailColumn = $null
+    
+    # Find email column (case-insensitive search)
+    foreach ($column in $Table.ListColumns) {
+        if ($column.Name -like "*Email*" -or $column.Index -eq 4) { # Column D = index 4
+            $emailColumn = $column.Index
+            break
+        }
+    }
+    
+    if ($emailColumn) {
+        return $Row.Range.Cells(1, $emailColumn).Text
+    }
+    
+    return $null
+}
+
+# ============================================
+# MAIN VALIDATION LOGIC
+# ============================================
+
+try {
+    # Input validation
+    if ([string]::IsNullOrWhiteSpace($RITM)) {
+        throw "RITM cannot be empty"
+    }
+    
+    # Clean RITM input
+    $RITM = $RITM.Trim()
+    
+    # Test Excel file
+    Test-ExcelFile -Path $ExcelPath
+    
+    # Initialize Excel COM object
+    $excel = New-Object -ComObject Excel.Application
+    $excel.Visible = $false
+    $excel.DisplayAlerts = $false
+    $excel.ScreenUpdating = $false
+    
+    # Open workbook read-only
+    $workbook = $excel.Workbooks.Open($ExcelPath, $null, $true)  # ReadOnly = true
+    
+    # Initialize result object
+    $result = @{
+        RITM = $RITM
+        Timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+        ValidationResult = "New submission"
+        IsDuplicate = $false
+        IsResubmissionAllowed = $false
+        ActiveEntries = @()
+        AllEntries = @()
+        Error = $null
+    }
+    
+    try {
+        # ========== STEP 1: Check OutputTable ==========
+        Write-Host "Step 1: Checking OutputTable for RITM: $RITM" -ForegroundColor Cyan
+        
+        $outputSheet = $workbook.Worksheets.Item("Output")  # Sheet name only for worksheet access
+        $outputTable = Get-TableRange -Worksheet $outputSheet -TableName "OutputTable"
+        $outputData = Get-TableData -Table $outputTable -RITMValue $RITM
+        
+        # Case 3: RITM never existed
+        if ($outputData.Count -eq 0) {
+            $result.ValidationResult = "New submission"
+            $result.IsDuplicate = $false
+            $result.IsResubmissionAllowed = $false
+            Write-Host "  RITM not found in OutputTable - New submission allowed" -ForegroundColor Green
+        }
+        else {
+            Write-Host "  Found $($outputData.Count) matching RITM entries" -ForegroundColor Yellow
+            
+            # ========== STEP 2: Check OfficeForms.Table ==========
+            Write-Host "`nStep 2: Validating against OfficeForms.Table" -ForegroundColor Cyan
+            
+            $formsSheet = $workbook.Worksheets.Item("Sheet1")  # Sheet name only for worksheet access
+            $formsTable = Get-TableRange -Worksheet $formsSheet -TableName "OfficeForms.Table"
+            
+            $activeEntriesFound = @()
+            $allEntries = @()
+            
+            foreach ($ritmEntry in $outputData) {
+                $id = $ritmEntry.ID
+                Write-Host "  Checking ID: $id" -ForegroundColor Gray
+                
+                # Find rows in OfficeForms.Table with this ID
+                $idColumn = $null
+                foreach ($column in $formsTable.ListColumns) {
+                    if ($column.Name -like "*ID*" -or $column.Index -eq 1) {
+                        $idColumn = $column.Index
+                        break
+                    }
+                }
+                
+                if (-not $idColumn) {
+                    throw "ID column not found in OfficeForms.Table"
+                }
+                
+                # Scan for matching IDs
+                for ($i = 1; $i -le $formsTable.ListRows.Count; $i++) {
+                    $row = $formsTable.ListRows.Item($i)
+                    $rowId = $row.Range.Cells(1, $idColumn).Text
+                    
+                    if ($rowId -eq $id) {
+                        $isActive = Test-RowIsActive -Row $row
+                        $email = Get-EmailFromOfficeFormsRow -Row $row -Table $formsTable
+                        
+                        $entryInfo = @{
+                            ID = $id
+                            RITM = $ritmEntry.RITM
+                            Email = $email
+                            IsActive = $isActive
+                            Status = if ($isActive) { "Active" } else { "Inactive (rejected/colored)" }
+                            RowNumber = $row.Range.Row
+                        }
+                        
+                        $allEntries += $entryInfo
+                        
+                        if ($isActive) {
+                            $activeEntriesFound += $entryInfo
+                            Write-Host "    Found ACTIVE entry for ID $id (Row $($row.Range.Row))" -ForegroundColor Red
+                        }
+                        else {
+                            Write-Host "    Found INACTIVE entry for ID $id (Row $($row.Range.Row))" -ForegroundColor DarkGray
+                        }
+                    }
+                }
+            }
+            
+            # ========== STEP 3: Apply Decision Rules ==========
+            Write-Host "`nStep 3: Applying decision rules" -ForegroundColor Cyan
+            
+            $result.AllEntries = $allEntries
+            
+            # Case 1: Active duplicate exists
+            if ($activeEntriesFound.Count -gt 0) {
+                $result.ValidationResult = "Duplicate - Active entry exists"
+                $result.IsDuplicate = $true
+                $result.IsResubmissionAllowed = $false
+                $result.ActiveEntries = $activeEntriesFound
+                
+                Write-Host "  DECISION: BLOCK submission - Active duplicate found" -ForegroundColor Red
+                Write-Host "  Active entries found:" -ForegroundColor Red
+                foreach ($entry in $activeEntriesFound) {
+                    Write-Host "    - ID: $($entry.ID), Email: $($entry.Email), Row: $($entry.RowNumber)" -ForegroundColor Red
+                }
+            }
+            # Case 2: All previous entries were rejected
+            else {
+                $result.ValidationResult = "Resubmission allowed - All previous entries rejected"
+                $result.IsDuplicate = $false
+                $result.IsResubmissionAllowed = $true
+                
+                Write-Host "  DECISION: ALLOW resubmission - All previous entries are rejected" -ForegroundColor Green
+                if ($allEntries.Count -gt 0) {
+                    Write-Host "  Inactive entries:" -ForegroundColor DarkGray
+                    foreach ($entry in $allEntries) {
+                        Write-Host "    - ID: $($entry.ID), Status: $($entry.Status)" -ForegroundColor DarkGray
+                    }
+                }
+            }
+        }
+    }
+    catch {
+        $result.Error = $_.Exception.Message
+        $result.ValidationResult = "Validation error"
+        Write-Host "ERROR: $($_.Exception.Message)" -ForegroundColor Red
+        throw
+    }
+}
+catch {
+    $result = @{
+        RITM = $RITM
+        Timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+        ValidationResult = "Error"
+        IsDuplicate = $false
+        IsResubmissionAllowed = $false
+        ActiveEntries = @()
+        AllEntries = @()
+        Error = $_.Exception.Message
+    }
+    
+    Write-Host "FATAL ERROR: $($_.Exception.Message)" -ForegroundColor Red
+}
+finally {
+    # Clean up COM objects
+    if ($workbook) { $workbook.Close($false) }
+    if ($excel) { 
+        $excel.Quit()
+        [System.Runtime.Interopservices.Marshal]::ReleaseComObject($excel) | Out-Null
+    }
+    
+    [System.GC]::Collect()
+    [System.GC]::WaitForPendingFinalizers()
+}
+
+# ============================================
+# OUTPUT RESULTS
+# ============================================
+
+if ($ReturnJson) {
+    # Return JSON for Power Automate consumption
+    $resultJson = $result | ConvertTo-Json -Depth 10 -Compress
+    Write-Output $resultJson
+}
+else {
+    # Human-readable output
+    Write-Host "`n" + "="*50 -ForegroundColor Cyan
+    Write-Host "VALIDATION RESULT" -ForegroundColor Cyan
+    Write-Host "="*50 -ForegroundColor Cyan
+    Write-Host "RITM:            $($result.RITM)" -ForegroundColor White
+    Write-Host "Result:          $($result.ValidationResult)" -ForegroundColor $(if ($result.IsDuplicate) { "Red" } else { "Green" })
+    Write-Host "Timestamp:       $($result.Timestamp)" -ForegroundColor Gray
+    
+    if ($result.Error) {
+        Write-Host "Error:           $($result.Error)" -ForegroundColor Red
+    }
+    
+    if ($result.ActiveEntries.Count -gt 0) {
+        Write-Host "`nActive Entries Found:" -ForegroundColor Red
+        foreach ($entry in $result.ActiveEntries) {
+            Write-Host "  • ID: $($entry.ID), Email: $($entry.Email), Row: $($entry.RowNumber)" -ForegroundColor Red
+        }
+    }
+    
+    Write-Host "`nDecision Summary:" -ForegroundColor Cyan
+    if ($result.IsDuplicate) {
+        Write-Host "  ❌ BLOCK submission - Notify submitter" -ForegroundColor Red
+        Write-Host "     Route to: 'Update CI' process or contact existing reviewer" -ForegroundColor Yellow
+    }
+    elseif ($result.IsResubmissionAllowed) {
+        Write-Host "  ✅ ALLOW resubmission - Previous entry was rejected" -ForegroundColor Green
+        Write-Host "     Proceed with normal processing" -ForegroundColor Green
+    }
+    else {
+        Write-Host "  ✅ ALLOW submission - New RITM" -ForegroundColor Green
+        Write-Host "     Proceed with normal processing" -ForegroundColor Green
+    }
+    
+    Write-Host "`n" + "="*50 -ForegroundColor Cyan
+}
+
+# Return exit code for automation (0 = success, non-zero = error)
+if ($result.Error -or $result.ValidationResult -eq "Error") {
+    exit 1
+}
+else {
+    exit 0
 }
