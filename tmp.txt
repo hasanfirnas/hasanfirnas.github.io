@@ -8,16 +8,18 @@ function main(workbook: ExcelScript.Workbook) {
   const sourceTable = workbook.getWorksheet(SOURCE_SHEET).getTable(SOURCE_TABLE);
   const binTable = workbook.getWorksheet(BIN_SHEET).getTable(BIN_TABLE);
 
-  const headers = sourceTable.getHeaderRowRange().getValues()[0] as string[];
+  const sourceHeaders = sourceTable.getHeaderRowRange().getValues()[0] as string[];
+  const binHeaders = binTable.getHeaderRowRange().getValues()[0] as string[];
+
   const sourceRange = sourceTable.getRangeBetweenHeaderAndTotal();
-  const data = sourceRange.getValues() as (string | number | boolean)[][];
+  const sourceData = sourceRange.getValues() as (string | number | boolean)[][];
 
   // ------------------------
   // Find Id column
   // ------------------------
-  const idColIndex = headers.indexOf("Id");
+  const idColIndex = sourceHeaders.indexOf("Id");
   if (idColIndex === -1) {
-    throw new Error("Id column not found");
+    throw new Error("Id column not found in source table");
   }
 
   // ------------------------
@@ -27,9 +29,9 @@ function main(workbook: ExcelScript.Workbook) {
   let ritmColIndex = -1;
   let maxHits = 0;
 
-  headers.forEach((_, colIndex) => {
+  sourceHeaders.forEach((_, colIndex) => {
     let hits = 0;
-    for (const row of data) {
+    for (const row of sourceData) {
       const cell = row[colIndex];
       if (typeof cell === "string" && ritmRegex.test(cell.trim())) {
         hits++;
@@ -48,10 +50,10 @@ function main(workbook: ExcelScript.Workbook) {
   // ------------------------
   // Normalize RITM values
   // ------------------------
-  for (let i = 0; i < data.length; i++) {
-    const val = data[i][ritmColIndex];
+  for (let i = 0; i < sourceData.length; i++) {
+    const val = sourceData[i][ritmColIndex];
     if (typeof val === "string") {
-      data[i][ritmColIndex] = val.trim();
+      sourceData[i][ritmColIndex] = val.trim();
     }
   }
 
@@ -65,7 +67,7 @@ function main(workbook: ExcelScript.Workbook) {
 
   const groups: Record<string, Entry[]> = {};
 
-  for (const row of data) {
+  for (const row of sourceData) {
     const ritmCell = row[ritmColIndex];
     const idCell = row[idColIndex];
 
@@ -97,7 +99,6 @@ function main(workbook: ExcelScript.Workbook) {
 
     entries.sort((a, b) => a.id - b.id);
     const keeper = entries[entries.length - 1];
-
     rowsToKeep.push(keeper.row);
 
     for (const e of entries) {
@@ -108,16 +109,23 @@ function main(workbook: ExcelScript.Workbook) {
   }
 
   // ------------------------
-  // Move duplicates to Bin
+  // Move rows to Bin (column-safe mapping)
   // ------------------------
-  for (const row of rowsToBin) {
-    binTable.addRow(-1, row);
+  for (const srcRow of rowsToBin) {
+    const binRow: (string | number | boolean)[] = [];
+
+    for (const binHeader of binHeaders) {
+      const srcIndex = sourceHeaders.indexOf(binHeader);
+      binRow.push(srcIndex !== -1 ? srcRow[srcIndex] : "");
+    }
+
+    binTable.addRow(-1, binRow);
   }
 
   // ------------------------
-  // Clear source table safely
+  // Clear source table contents
   // ------------------------
-  if (data.length > 0) {
+  if (sourceData.length > 0) {
     sourceRange.clear(ExcelScript.ClearApplyTo.contents);
   }
 
