@@ -1,18 +1,17 @@
 function main(workbook: ExcelScript.Workbook) {
-  const sourceSheet = workbook.getWorksheet("Sheet1");
-  const sourceTable = sourceSheet.getTable("OfficeForms.Table");
-  const binSheet = workbook.getWorksheet("Bin");
-  const binTable = binSheet.getTable("Bin.Table");
+  const sourceTable = workbook.getWorksheet("Sheet1").getTable("OfficeForms.Table");
+  const binTable = workbook.getWorksheet("Bin").getTable("Bin.Table");
 
-  // 1. Get Data
+  // 1. Get Data with explicit types
   const dataRange = sourceTable.getRangeBetweenHeaderAndTotal();
-  const data = dataRange.getValues();
+  // Define row values type to avoid "any"
+  const data: (string | number | boolean)[][] = dataRange.getValues();
   const headers = sourceTable.getHeaderRowRange().getValues()[0] as string[];
   
   const idColIndex = headers.indexOf("Id");
   const ritmRegex = /^RITM\d{4,}$/i;
 
-  // 2. Detect RITM Column (Dynamic)
+  // 2. Detect RITM Column
   let ritmColIndex = -1;
   let maxCount = 0;
   headers.forEach((_, colIdx) => {
@@ -28,8 +27,8 @@ function main(workbook: ExcelScript.Workbook) {
 
   if (ritmColIndex === -1) return;
 
-  // 3. Logic: Find Duplicates (Keep highest ID)
-  const ritmGroups: Record<string, { rowIndex: number, id: number, values: any[] }[]> = {};
+  // 3. Logic: Find Duplicates (Explicitly type the record)
+  const ritmGroups: Record<string, { rowIndex: number, id: number, values: (string | number | boolean)[] }[]> = {};
   
   data.forEach((row, index) => {
     const ritm = row[ritmColIndex]?.toString().trim().toUpperCase();
@@ -40,7 +39,8 @@ function main(workbook: ExcelScript.Workbook) {
     }
   });
 
-  let rowsToMove: any[][] = [];
+  // Explicitly type the movement array
+  let rowsToMove: (string | number | boolean)[][] = [];
   let indicesToDelete: number[] = [];
 
   for (const ritm in ritmGroups) {
@@ -50,27 +50,22 @@ function main(workbook: ExcelScript.Workbook) {
     // Sort by ID ascending
     entries.sort((a, b) => a.id - b.id);
     
-    // The last one is the keeper (highest ID), all others move to Bin
+    // The last one is the keeper, others move
     for (let i = 0; i < entries.length - 1; i++) {
       rowsToMove.push(entries[i].values);
       indicesToDelete.push(entries[i].rowIndex);
     }
   }
 
-  // 4. PERFORM THE MOVEMENT (The Fast Way)
+  // 4. PERFORM MOVEMENT
   if (rowsToMove.length > 0) {
-    // A. Add all rows to Bin Table at once (Super Fast)
+    // Add all to Bin
     binTable.addRows(null, rowsToMove);
 
-    // B. Delete rows from Source Table
-    // We sort indices descending to delete from bottom-to-top so the table doesn't shift
+    // Delete from Source (Bottom-to-Top)
     indicesToDelete.sort((a, b) => b - a);
     indicesToDelete.forEach(index => {
       sourceTable.deleteRowsAt(index, 1);
     });
-
-    console.log(`✅ Successfully moved ${rowsToMove.length} duplicates to Bin.`);
-  } else {
-    console.log("No duplicates found.");
   }
 }
