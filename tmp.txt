@@ -1,113 +1,108 @@
 function main(workbook: ExcelScript.Workbook, ritmInput: string): string {
 
-  // ---------------- CONFIG ----------------
+  /* ================= CONFIG ================= */
   const OUTPUT_TABLE_NAME = "OutputTable";
   const FORMS_TABLE_NAME  = "OfficeForms.Table";
-  // ----------------------------------------
+
+  const COL_ID = 0;      // Column A
+  const COL_RITM = 2;    // Column C
+  const COL_EMAIL = 3;   // Column D
+  /* ========================================== */
 
   if (!ritmInput || ritmInput.trim() === "") {
-    return JSON.stringify({ status: "error", message: "Empty RITM" });
+    return JSON.stringify({ status: "error", message: "Empty RITM input" });
   }
 
   const ritm = ritmInput.trim().toLowerCase();
 
-  // ---------- STEP 1: Check OutputTable ----------
-  const outputTable = workbook.getTable(OUTPUT_TABLE_NAME);
-  const outputRows = outputTable
-    .getRangeBetweenHeaderAndTotal()
-    .getValues();
+  /* ---------- SAFE TABLE FETCH ---------- */
+  const tables = workbook.getTables();
+
+  const outputTable = tables.find(t => t.getName() === OUTPUT_TABLE_NAME);
+  if (!outputTable) {
+    return JSON.stringify({
+      status: "error",
+      message: `Table not found: ${OUTPUT_TABLE_NAME}`
+    });
+  }
+
+  const formsTable = tables.find(t => t.getName() === FORMS_TABLE_NAME);
+  if (!formsTable) {
+    return JSON.stringify({
+      status: "error",
+      message: `Table not found: ${FORMS_TABLE_NAME}`
+    });
+  }
+
+  /* ---------- STEP 1: CHECK OUTPUT TABLE ---------- */
+  const outputRange = outputTable.getRangeBetweenHeaderAndTotal();
+  const outputValues = outputRange.getValues();
 
   const matchedIds: string[] = [];
 
-  for (let i = 0; i < outputRows.length; i++) {
-    const row = outputRows[i];
-    const rowRitm = String(row[2] ?? "").trim().toLowerCase(); // Column C (RITM)
+  for (let i = 0; i < outputValues.length; i++) {
+    const rowRitm = String(outputValues[i][COL_RITM] ?? "")
+      .trim()
+      .toLowerCase();
 
     if (rowRitm === ritm) {
-      matchedIds.push(String(row[0] ?? "").trim()); // Column A (ID)
+      matchedIds.push(String(outputValues[i][COL_ID]).trim());
     }
   }
 
-  // RITM never processed before
   if (matchedIds.length === 0) {
     return JSON.stringify({ status: "new" });
   }
 
-  // ---------- STEP 2: Scan OfficeForms.Table ----------
-  const formsTable = workbook.getTable(FORMS_TABLE_NAME);
+  /* ---------- STEP 2: CHECK FORMS TABLE ---------- */
   const formsRange = formsTable.getRangeBetweenHeaderAndTotal();
   const formsValues = formsRange.getValues();
-
-  const worksheet = formsTable.getWorksheet();
-  const totalCols = formsRange.getColumnCount();
+  const sheet = formsTable.getWorksheet();
 
   for (let i = 0; i < formsValues.length; i++) {
-    const row = formsValues[i];
-    const formId = String(row[0] ?? "").trim(); // Column A (ID)
+    const id = String(formsValues[i][COL_ID] ?? "").trim();
+    if (!matchedIds.includes(id)) continue;
 
-    if (!matchedIds.includes(formId)) continue;
+    const absoluteRow =
+      formsRange.getRowIndex() + i;
 
-    const absoluteRowIndex = formsRange.getRowIndex() + i;
-    const rowRange = worksheet.getRangeByIndexes(
-      absoluteRowIndex,
-      0,
+    // 👇 ONE CELL IS ENOUGH (row-level formatting)
+    const checkCell = sheet.getRangeByIndexes(
+      absoluteRow,
+      COL_ID,
       1,
-      totalCols
+      1
     );
 
-    // ---------- STRIKE-THROUGH CHECK (ENTIRE ROW) ----------
-    let rowStruck = false;
+    let isStruck = false;
+    let isColored = false;
+
     try {
-      const strikeInfo = rowRange.getFormat().getFont().getStrikethrough();
-      if (typeof strikeInfo === "boolean") {
-        rowStruck = strikeInfo;
-      } else if (Array.isArray(strikeInfo)) {
-        outer: for (let r = 0; r < strikeInfo.length; r++) {
-          for (let c = 0; c < strikeInfo[r].length; c++) {
-            if (strikeInfo[r][c]) {
-              rowStruck = true;
-              break outer;
-            }
-          }
-        }
-      }
+      isStruck = checkCell.getFormat().getFont().getStrikethrough() === true;
     } catch {}
 
-    // ---------- COLOR CHECK (ENTIRE ROW) ----------
-    let rowColored = false;
     try {
-      const fillInfo = rowRange.getFormat().getFill().getColor();
-      if (typeof fillInfo === "string" && fillInfo !== "") {
-        rowColored = true;
-      } else if (Array.isArray(fillInfo)) {
-        outer2: for (let r = 0; r < fillInfo.length; r++) {
-          for (let c = 0; c < fillInfo[r].length; c++) {
-            if (fillInfo[r][c]) {
-              rowColored = true;
-              break outer2;
-            }
-          }
-        }
-      }
+      const color = checkCell.getFormat().getFill().getColor();
+      isColored = typeof color === "string" && color !== "";
     } catch {}
 
-    // ---------- ACTIVE DUPLICATE FOUND ----------
-    if (!rowStruck && !rowColored) {
-      const email = String(row[3] ?? "").trim(); // Column D (Email)
+    // ACTIVE DUPLICATE
+    if (!isStruck && !isColored) {
+      const email = String(formsValues[i][COL_EMAIL] ?? "").trim();
 
       return JSON.stringify({
         status: "duplicate_active",
         details: {
-          id: formId,
+          id,
           ritm: ritmInput,
-          email: email,
-          rowNumber: absoluteRowIndex + 1
+          email,
+          rowNumber: absoluteRow + 1
         }
       });
     }
   }
 
-  // ---------- Only rejected / struck rows exist ----------
+  /* ---------- ONLY REJECTED ROWS EXIST ---------- */
   return JSON.stringify({
     status: "new",
     reason: "all_previous_entries_rejected"
