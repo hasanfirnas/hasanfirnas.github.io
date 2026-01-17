@@ -1,47 +1,66 @@
 function main(workbook: ExcelScript.Workbook) {
-  const sourceTable = workbook.getWorksheet("Sheet1").getTable("OfficeForms.Table");
-  const binTable = workbook.getWorksheet("Bin").getTable("Bin.Table");
+  const worksheet = workbook.getWorksheet("Bin");
+  const table = worksheet.getTable("Bin.Table");
+  const archiveTable = worksheet.getTable("Bin.ArchiveTable"); // ✅ DESTINATION
 
-  // 1. Get Data with explicit types
-  const dataRange = sourceTable.getRangeBetweenHeaderAndTotal();
-  // Define row values type to avoid "any"
-  const data: (string | number | boolean)[][] = dataRange.getValues();
-  const headers = sourceTable.getHeaderRowRange().getValues()[0] as string[];
-  
+  // Get headers and data
+  const headers = table.getHeaderRowRange().getValues()[0] as string[];
+  const dataRange = table.getRangeBetweenHeaderAndTotal();
+  const data = dataRange.getValues();
+
+  // Find 'Id' column index
   const idColIndex = headers.indexOf("Id");
-  const ritmRegex = /^RITM\d{4,}$/i;
+  if (idColIndex === -1) throw new Error("Couldn't find 'Id' column");
 
-  // 2. Detect RITM Column
+  // STEP 1: Detect RITM Column dynamically
+  const ritmRegex = /^RITM\d{4,}$/i;
   let ritmColIndex = -1;
   let maxCount = 0;
-  headers.forEach((_, colIdx) => {
+
+  headers.forEach((_, colIndex) => {
     let count = 0;
     for (let row of data) {
-      if (ritmRegex.test(row[colIdx]?.toString().trim())) count++;
+      const cell = row[colIndex]?.toString().trim();
+      if (ritmRegex.test(cell)) count++;
     }
     if (count > maxCount) {
       maxCount = count;
-      ritmColIndex = colIdx;
+      ritmColIndex = colIndex;
     }
   });
 
-  if (ritmColIndex === -1) return;
+  if (ritmColIndex === -1) throw new Error("No RITM column detected.");
 
-  // 3. Logic: Find Duplicates (Explicitly type the record)
-  const ritmGroups: Record<string, { rowIndex: number, id: number, values: (string | number | boolean)[] }[]> = {};
-  
-  data.forEach((row, index) => {
-    const ritm = row[ritmColIndex]?.toString().trim().toUpperCase();
-    const id = Number(row[idColIndex]);
-    if (ritm && !isNaN(id)) {
+  // STEP 1.5: Trim RITM values IN EXCEL (physical update)
+  for (let i = 0; i < data.length; i++) {
+    const cellValue = data[i][ritmColIndex];
+    if (typeof cellValue === "string") {
+      const trimmed = cellValue.trim();
+      if (cellValue !== trimmed) {
+        dataRange.getCell(i, ritmColIndex).setValue(trimmed);
+      }
+    }
+  }
+
+  // STEP 2: Group rows by RITM
+  const ritmGroups: Record<string, { rowIndex: number; id: number }[]> = {};
+
+  for (let i = 0; i < data.length; i++) {
+    const ritmRaw = data[i][ritmColIndex]?.toString().trim();
+    const idRaw = data[i][idColIndex]?.toString().trim();
+
+    if (ritmRegex.test(ritmRaw) && !isNaN(Number(idRaw))) {
+      const ritm = ritmRaw.toUpperCase();
+      const id = Number(idRaw);
+
       if (!ritmGroups[ritm]) ritmGroups[ritm] = [];
-      ritmGroups[ritm].push({ rowIndex: index, id, values: row });
+      ritmGroups[ritm].push({ rowIndex: i, id });
     }
-  });
+  }
 
-  // Explicitly type the movement array
-  let rowsToMove: (string | number | boolean)[][] = [];
-  let indicesToDelete: number[] = [];
+  // STEP 3: Process duplicates
+  // IMPORTANT: Delete rows in DESCENDING order to avoid index shift
+  const rowsToMove: { rowIndex: number }[] = [];
 
   for (const ritm in ritmGroups) {
     const entries = ritmGroups[ritm];
@@ -49,23 +68,29 @@ function main(workbook: ExcelScript.Workbook) {
 
     // Sort by ID ascending
     entries.sort((a, b) => a.id - b.id);
-    
-    // The last one is the keeper, others move
+
+    // Keep highest ID, move rest
     for (let i = 0; i < entries.length - 1; i++) {
-      rowsToMove.push(entries[i].values);
-      indicesToDelete.push(entries[i].rowIndex);
+      rowsToMove.push({ rowIndex: entries[i].rowIndex });
     }
   }
 
-  // 4. PERFORM MOVEMENT
-  if (rowsToMove.length > 0) {
-    // Add all to Bin
-    binTable.addRows(null, rowsToMove);
+  // Sort rows to move in DESC order (critical)
+  rowsToMove.sort((a, b) => b.rowIndex - a.rowIndex);
 
-    // Delete from Source (Bottom-to-Top)
-    indicesToDelete.sort((a, b) => b - a);
-    indicesToDelete.forEach(index => {
-      sourceTable.deleteRowsAt(index, 1);
-    });
+  // STEP 4: Move + format + delete
+  for (const item of rowsToMove) {
+    const rowRange = dataRange.getRow(item.rowIndex);
+    const rowValues = rowRange.getValues()[0];
+
+    // ➜ Add to archive table
+    archiveTable.addRow(-1, rowValues);
+
+    // ➜ Highlight & strike (table cells only)
+    rowRange.getFormat().getFill().setColor("red");
+    rowRange.getFormat().getFont().setStrikethrough(true);
+
+    // ➜ Remove from source table
+    table.deleteRowsAt(item.rowIndex, 1);
   }
 }
