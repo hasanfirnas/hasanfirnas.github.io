@@ -58,104 +58,194 @@ function main(workbook: ExcelScript.Workbook) {
   }
 
   // ------------------------
-  // Group by RITM
+  // Build set of existing Bin IDs (to avoid duplicates in Bin)
   // ------------------------
-  type Entry = {
-    rowIndex: number;
-    row: (string | number | boolean)[];
-    id: number;
-  };
-
-  const groups: Record<string, Entry[]> = {};
-
-  for (let i = 0; i < sourceData.length; i++) {
-    const row = sourceData[i];
-    const ritmCell = row[ritmColIndex];
-    const idCell = row[idColIndex];
-
-    if (
-      typeof ritmCell === "string" &&
-      ritmRegex.test(ritmCell) &&
-      typeof idCell !== "boolean" &&
-      !isNaN(Number(idCell))
-    ) {
-      const key = ritmCell.toUpperCase();
-      if (!groups[key]) groups[key] = [];
-      groups[key].push({ rowIndex: i, row, id: Number(idCell) });
-    }
-  }
-
-  const rowsToKeep: (string | number | boolean)[][] = [];
-  const rowsToBin: Entry[] = [];
-
-  // ------------------------
-  // Decide KEEP vs BIN (preserve rowIndex for deletion)
-  // ------------------------
-  for (const ritm in groups) {
-    const entries = groups[ritm];
-
-    if (entries.length === 1) {
-      rowsToKeep.push(entries[0].row);
-      continue;
-    }
-
-    entries.sort((a, b) => a.id - b.id);
-    const keeper = entries[entries.length - 1];
-    rowsToKeep.push(keeper.row);
-
-    for (const e of entries) {
-      if (e !== keeper) {
-        rowsToBin.push(e); // store full entry so we can delete by original index
+  const binRange = binTable.getRangeBetweenHeaderAndTotal();
+  const binData = binRange.getValues() as (string | number | boolean)[][];
+  const binIdColIndex = binHeaders.indexOf("Id");
+  const existingBinIds = new Set<string>();
+  if (binIdColIndex !== -1) {
+    for (const brow of binData) {
+      const bid = brow[binIdColIndex];
+      if (bid !== null && bid !== undefined && String(bid).toString().trim() !== "") {
+        existingBinIds.add(String(bid).toString().trim());
       }
     }
   }
 
   // ------------------------
-  // Move rows to Bin (column-safe mapping)
+  // Helper: detect if a table-row (within sourceRange) has any red fill or any strikethrough
   // ------------------------
-  for (const e of rowsToBin) {
-    const srcRow = e.row;
-    const binRow: (string | number | boolean)[] = [];
+  function isRowMarkedForBin(rowIndex: number): boolean {
+    const rowRange = sourceRange.getRow(rowIndex);
+    const colCount = rowRange.getColumnCount();
+    for (let c = 0; c < colCount; c++) {
+      try {
+        const cell = rowRange.getCell(0, c);
+        const fillColor = (cell.getFormat().getFill().getColor() || "").toString().trim().toLowerCase();
+        // common red names/hex (#ff0000) normalized to lowercase
+        if (fillColor === "red" || fillColor === "#ff0000" || fillColor === "rgb(255,0,0)") {
+          return true;
+        }
+        // check font strikethrough
+        const struck = cell.getFormat().getFont().getStrikethrough();
+        if (struck === true) return true;
+      } catch (e) {
+        // ignore format-read errors for non-text cells
+      }
+    }
+    return false;
+  }
 
+  // ------------------------
+  // Group by RITM (for duplicate detection) AND identify empty or formatted rows for bin
+  // ------------------------
+  type Entry = {
+    rowIndex: number;
+    row: (string | number | boolean)[];
+    id: number | null;
+    ritm: string | null;
+  };
+
+  const groups: Record<string, Entry[]> = {};
+  const markedRowIndexes = new Set<number>(); // rows forced to bin due to empty RITM or formatting
+
+  for (let i = 0; i < sourceData.length; i++) {
+    const row = sourceData[i];
+    const ritmCellRaw = row[ritmColIndex];
+    const idCell = row[idColIndex];
+
+    // trimmed strings
+    const ritmStr = (typeof ritmCellRaw === "string") ? ritmCellRaw.trim() : (ritmCellRaw ? String(ritmCellRaw) : "");
+    const idStr = (idCell !== null && idCell !== undefined) ? String(idCell).toString().trim() : "";
+
+    // If RITM cell is empty (no text), mark for bin
+    if (!ritmStr) {
+      markedRowIndexes.add(i);
+      // still continue to maybe capture ID for deletion/dedup logic
+    }
+
+    // If row has any red fill or strikethrough, mark for bin
+    if (isRowMarkedForBin(i)) {
+      markedRowIndexes.add(i);
+    }
+
+    // valid groupable rows: ritm matches regex and id numeric
+    if (typeof ritmStr === "string" && ritmRegex.test(ritmStr) && idStr !== "" && !isNaN(Number(idStr))) {
+      const key = ritmStr.toUpperCase();
+      if (!groups[key]) groups[key] = [];
+      groups[key].push({ rowIndex: i, row, id: Number(idStr), ritm: key });
+    }
+  }
+
+  // ------------------------
+  // Decide KEEP vs BIN (preserve rowIndex for deletion)
+  // ------------------------
+  const rowsToBinEntries: Entry[] = [];
+  const keepRowIndexes = new Set<number>();
+
+  // First, handle duplicates by grouping
+  for (const ritm in groups) {
+    const entries = groups[ritm];
+    if (entries.length === 1) {
+      keepRowIndexes.add(entries[0].rowIndex);
+      continue;
+    }
+    // multiple entries -> keep the one with max id
+    entries.sort((a, b) => (a.id as number) - (b.id as number));
+    const keeper = entries[entries.length - 1];
+    keepRowIndexes.add(keeper.rowIndex);
+
+    for (const e of entries) {
+      if (e.rowIndex !== keeper.rowIndex) {
+        markedRowIndexes.add(e.rowIndex); // mark these for bin
+      }
+    }
+  }
+
+  // Now prepare final lists based on markedRowIndexes
+  for (const idx of Array.from(markedRowIndexes)) {
+    // protect against out-of-range
+    if (idx >= 0 && idx < sourceData.length) {
+      const r = sourceData[idx];
+      const idCell = r[idColIndex];
+      const idNum = (idCell !== null && idCell !== undefined && String(idCell).toString().trim() !== "") ? Number(String(idCell).toString().trim()) : null;
+      rowsToBinEntries.push({ rowIndex: idx, row: r, id: idNum, ritm: (typeof r[ritmColIndex] === "string" ? r[ritmColIndex].toString().trim().toUpperCase() : null) });
+    }
+  }
+
+  // Rows to keep: all rows that are NOT in markedRowIndexes (and have content)
+  const rowsToKeep: (string | number | boolean)[][] = [];
+  for (let i = 0; i < sourceData.length; i++) {
+    if (!markedRowIndexes.has(i)) {
+      rowsToKeep.push(sourceData[i]);
+    }
+  }
+
+  // ------------------------
+  // Move rows to Bin (column-safe mapping) with duplication check and immediate formatting
+  // ------------------------
+  // We'll collect unique rowIndex list and sort by original order if needed
+  // For adding rows to Bin, check if bin already has that Id (if possible), otherwise add.
+  for (const e of rowsToBinEntries) {
+    const srcRow = e.row;
+    const idValueStr = e.id !== null ? String(e.id).toString().trim() : "";
+
+    // if ID exists in Bin, skip adding to Bin but still delete in source (we'll handle deletion later)
+    if (idValueStr !== "" && existingBinIds.has(idValueStr)) {
+      // do nothing to Bin — skip add
+      continue;
+    }
+
+    // Build bin row with column-safe mapping
+    const binRow: (string | number | boolean)[] = [];
     for (const binHeader of binHeaders) {
       const srcIndex = sourceHeaders.indexOf(binHeader);
       binRow.push(srcIndex !== -1 ? srcRow[srcIndex] : "");
     }
 
+    // Add to Bin
     binTable.addRow(-1, binRow);
+
+    // Add to existingBinIds to prevent duplicates from this run
+    if (binIdColIndex !== -1) {
+      // compute the ID value just added (from binRow)
+      const addedId = binRow[binIdColIndex];
+      if (addedId !== null && addedId !== undefined && String(addedId).toString().trim() !== "") {
+        existingBinIds.add(String(addedId).toString().trim());
+      }
+    }
+
+    // Immediately format the last row in Bin as red + strikethrough
+    try {
+      const newBinRange = binTable.getRangeBetweenHeaderAndTotal();
+      const lastIndex = newBinRange.getRowCount() - 1;
+      if (lastIndex >= 0) {
+        const lastRowRange = newBinRange.getRow(lastIndex);
+        lastRowRange.getFormat().getFill().setColor("red");
+        lastRowRange.getFormat().getFont().setStrikethrough(true);
+      }
+    } catch (e) {
+      // ignore formatting errors
+    }
   }
 
   // ------------------------
   // Delete source table rows (bottom -> top) to avoid index shift
   // ------------------------
-  // We will delete all rows that we moved to bin by using their original rowIndex.
-  // Deleting from largest index to smallest prevents shifting issues.
-  if (rowsToBin.length > 0) {
-    // Extract unique row indexes and sort descending
-    const indexesToDelete = Array.from(new Set(rowsToBin.map(x => x.rowIndex)));
-    indexesToDelete.sort((a, b) => b - a);
+  if (rowsToBinEntries.length > 0) {
+    const indexesToDelete = Array.from(new Set(rowsToBinEntries.map(x => x.rowIndex)));
+    indexesToDelete.sort((a, b) => b - a); // descending
 
     for (const idx of indexesToDelete) {
-      // delete the table-row-sized range; this removes the table row completely
-      sourceRange.getRow(idx).delete(ExcelScript.DeleteShiftDirection.up);
+      if (idx >= 0 && idx < sourceRange.getRowCount()) {
+        sourceRange.getRow(idx).delete(ExcelScript.DeleteShiftDirection.up);
+      }
     }
   }
 
   // ------------------------
-  // At this point, some original rows were deleted. Now rebuild: 
-  // remove any remaining rows in the source table and re-add rowsToKeep
-  // (This ensures exact, clean table with only kept rows.)
+  // Optionally: you are currently NOT rebuilding the source table (you said you're commenting that part out)
+  // So this script preserves your choice: it deletes binned rows and leaves remaining rows as-is.
   // ------------------------
-
-  // Delete all remaining rows in the table (if any) bottom->top
-  let remainingCount = sourceTable.getRowCount();
-  for (let r = remainingCount - 1; r >= 0; r--) {
-    // After prior deletes, sourceRange changed; get the current range and delete rows
-    sourceTable.getRangeBetweenHeaderAndTotal().getRow(r).delete(ExcelScript.DeleteShiftDirection.up);
-  }
-
-  // Re-add the kept rows
-  for (const row of rowsToKeep) {
-    sourceTable.addRow(-1, row);
-  }
 }
