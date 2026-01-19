@@ -1,138 +1,116 @@
 function main(workbook: ExcelScript.Workbook) {
+  // CONFIG
+  const sourceSheetName = "Sheet1";
+  const sourceTableName = "OfficeForms.Table";
+  const destSheetName = "Bin";
+  const destTableName = "Bin.Table";
 
-  const SOURCE_SHEET = "Sheet1";
-  const SOURCE_TABLE = "OfficeForms.Table";
-  const BIN_SHEET = "Bin";
-  const BIN_TABLE = "Bin.Table";
+  // Helpers: normalize color to hex like "#rrggbb"
+  function normalizeColor(raw: string | undefined | null): string {
+    if (!raw) return "";
+    let s = raw.toString().trim().toLowerCase();
 
-  const sourceTable = workbook.getWorksheet(SOURCE_SHEET).getTable(SOURCE_TABLE);
-  const binTable = workbook.getWorksheet(BIN_SHEET).getTable(BIN_TABLE);
-
-  const sourceHeaders = sourceTable.getHeaderRowRange().getValues()[0] as string[];
-  const binHeaders = binTable.getHeaderRowRange().getValues()[0] as string[];
-
-  const sourceRange = sourceTable.getRangeBetweenHeaderAndTotal();
-  const sourceData = sourceRange.getValues() as (string | number | boolean)[][];
-
-  // ------------------------
-  // Find Id column
-  // ------------------------
-  const idColIndex = sourceHeaders.indexOf("Id");
-  if (idColIndex === -1) {
-    throw new Error("Id column not found in source table");
-  }
-
-  // ------------------------
-  // Detect RITM column
-  // ------------------------
-  const ritmRegex = /^RITM\d{4,}$/i;
-  let ritmColIndex = -1;
-  let maxHits = 0;
-
-  sourceHeaders.forEach((_, colIndex) => {
-    let hits = 0;
-    for (const row of sourceData) {
-      const cell = row[colIndex];
-      if (typeof cell === "string" && ritmRegex.test(cell.trim())) {
-        hits++;
+    // handle rgb(...) formats like "rgb(255, 0, 0)" or "rgb(255,0,0)"
+    if (s.startsWith("rgb(")) {
+      const nums = s
+        .replace(/^rgb\(|\)$/g, "")
+        .split(",")
+        .map(x => Number(x.trim()));
+      if (nums.length === 3 && nums.every(n => !isNaN(n))) {
+        return (
+          "#" +
+          nums
+            .map(n => {
+              const h = n.toString(16);
+              return h.length === 1 ? "0" + h : h;
+            })
+            .join("")
+        );
       }
     }
-    if (hits > maxHits) {
-      maxHits = hits;
-      ritmColIndex = colIndex;
+
+    // handle hex with or without '#'
+    if (/^#?[0-9a-f]{6}$/.test(s)) {
+      if (!s.startsWith("#")) s = "#" + s;
+      return s;
     }
+
+    // handle short hex like #f00 => #ff0000
+    if (/^#?[0-9a-f]{3}$/.test(s)) {
+      if (!s.startsWith("#")) s = "#" + s;
+      const r = s[1], g = s[2], b = s[3];
+      return "#" + r + r + g + g + b + b;
+    }
+
+    // some APIs might return color names — map 'red' to hex
+    if (s === "red") return "#ff0000";
+
+    // unknown / unsupported format
+    return "";
+  }
+
+  // canonical red hex to compare against
+  const canonicalRed = "#ff0000";
+
+  // get tables
+  const sourceTable = workbook.getWorksheet(sourceSheetName).getTable(sourceTableName);
+  const destTable = workbook.getWorksheet(destSheetName).getTable(destTableName);
+
+  // get source data
+  const srcBodyRange = sourceTable.getRangeBetweenHeaderAndTotal();
+  const srcValues = srcBodyRange.getValues();
+
+  // collect indices to move
+  const rowsToMove: number[] = [];
+  const rowsFillColor: Record<number, string> = {}; // store original color for each row
+
+  for (let i = 0; i < srcValues.length; i++) {
+    const rowRange = srcBodyRange.getRow(i);
+    const fmt = rowRange.getFormat();
+
+    // check strikethrough at row-level (font)
+    const isStruck = fmt.getFont().getStrikethrough();
+    // get fill color for the *row range* (table columns only)
+    const fillColorRaw = fmt.getFill().getColor();
+
+    const normalized = normalizeColor(fillColorRaw);
+    const isRed = normalized === canonicalRed;
+
+    // Move only when BOTH true
+    if (isStruck && isRed) {
+      rowsToMove.push(i);
+      rowsFillColor[i] = fillColorRaw ?? "";
+    }
+  }
+
+  // Nothing to do
+  if (rowsToMove.length === 0) {
+    console.log("No red+struck rows found. Nothing moved.");
+    return;
+  }
+
+  // Move rows one-by-one (preserve order of appearance): append to dest and apply formatting
+  // We'll process rows in ascending order so the sequence in Bin matches source order.
+  for (const srcRowIndex of rowsToMove) {
+    const values = srcBodyRange.getRow(srcRowIndex).getValues()[0] as (string | number | boolean)[];
+    // add row to destination table (append)
+    destTable.addRow(-1, values);
+
+    // apply formatting (fill + strikethrough) to the new destination row
+    const destBodyRange = destTable.getRangeBetweenHeaderAndTotal();
+    const destRowIndex = destBodyRange.getRowCount() - 1; // last row index
+    const destRowRange = destBodyRange.getRow(destRowIndex);
+
+    // use original fill color stored earlier
+    const fillColorRaw = rowsFillColor[srcRowIndex];
+    if (fillColorRaw) destRowRange.getFormat().getFill().setColor(fillColorRaw);
+    destRowRange.getFormat().getFont().setStrikethrough(true);
+  }
+
+  // Delete source rows from bottom-to-top to avoid index shifting
+  rowsToMove.sort((a, b) => b - a).forEach(rowIndex => {
+    sourceTable.deleteRowsAt(rowIndex, 1);
   });
 
-  if (ritmColIndex === -1) {
-    throw new Error("RITM column not detected");
-  }
-
-  // ------------------------
-  // Normalize RITM values
-  // ------------------------
-  for (let i = 0; i < sourceData.length; i++) {
-    const val = sourceData[i][ritmColIndex];
-    if (typeof val === "string") {
-      sourceData[i][ritmColIndex] = val.trim();
-    }
-  }
-
-  // ------------------------
-  // Group by RITM
-  // ------------------------
-  type Entry = {
-    row: (string | number | boolean)[];
-    id: number;
-  };
-
-  const groups: Record<string, Entry[]> = {};
-
-  for (const row of sourceData) {
-    const ritmCell = row[ritmColIndex];
-    const idCell = row[idColIndex];
-
-    if (
-      typeof ritmCell === "string" &&
-      ritmRegex.test(ritmCell) &&
-      typeof idCell !== "boolean" &&
-      !isNaN(Number(idCell))
-    ) {
-      const key = ritmCell.toUpperCase();
-      if (!groups[key]) groups[key] = [];
-      groups[key].push({ row, id: Number(idCell) });
-    }
-  }
-
-  const rowsToKeep: (string | number | boolean)[][] = [];
-  const rowsToBin: (string | number | boolean)[][] = [];
-
-  // ------------------------
-  // Decide KEEP vs BIN
-  // ------------------------
-  for (const ritm in groups) {
-    const entries = groups[ritm];
-
-    if (entries.length === 1) {
-      rowsToKeep.push(entries[0].row);
-      continue;
-    }
-
-    entries.sort((a, b) => a.id - b.id);
-    const keeper = entries[entries.length - 1];
-    rowsToKeep.push(keeper.row);
-
-    for (const e of entries) {
-      if (e !== keeper) {
-        rowsToBin.push(e.row);
-      }
-    }
-  }
-
-  // ------------------------
-  // Move rows to Bin (column-safe mapping)
-  // ------------------------
-  for (const srcRow of rowsToBin) {
-    const binRow: (string | number | boolean)[] = [];
-
-    for (const binHeader of binHeaders) {
-      const srcIndex = sourceHeaders.indexOf(binHeader);
-      binRow.push(srcIndex !== -1 ? srcRow[srcIndex] : "");
-    }
-
-    binTable.addRow(-1, binRow);
-  }
-
-  // ------------------------
-  // Clear source table contents
-  // ------------------------
-  if (sourceData.length > 0) {
-    sourceRange.clear(ExcelScript.ClearApplyTo.contents);
-  }
-
-  // ------------------------
-  // Rebuild source table
-  // ------------------------
-  for (const row of rowsToKeep) {
-    sourceTable.addRow(-1, row);
-  }
+  console.log(`Moved ${rowsToMove.length} red+struck row(s) to ${destTableName} on ${destSheetName}.`);
 }
