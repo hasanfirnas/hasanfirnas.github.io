@@ -1,16 +1,19 @@
 function main(workbook: ExcelScript.Workbook) {
-  // CONFIG
+  // ===== CONFIG =====
   const sourceSheetName = "Sheet1";
   const sourceTableName = "OfficeForms.Table";
   const destSheetName = "Bin";
   const destTableName = "Bin.Table";
 
-  // Helpers: normalize color to hex like "#rrggbb"
+  // IMPORTANT: set dryRun = true to only log what would happen.
+  // Change to false only AFTER you validated the dry-run logs and/or tested on a copy.
+  const dryRun = true;
+
+  // ===== HELPERS =====
   function normalizeColor(raw: string | undefined | null): string {
     if (!raw) return "";
     let s = raw.toString().trim().toLowerCase();
 
-    // handle rgb(...) formats like "rgb(255, 0, 0)" or "rgb(255,0,0)"
     if (s.startsWith("rgb(")) {
       const nums = s
         .replace(/^rgb\(|\)$/g, "")
@@ -29,88 +32,126 @@ function main(workbook: ExcelScript.Workbook) {
       }
     }
 
-    // handle hex with or without '#'
     if (/^#?[0-9a-f]{6}$/.test(s)) {
       if (!s.startsWith("#")) s = "#" + s;
       return s;
     }
 
-    // handle short hex like #f00 => #ff0000
     if (/^#?[0-9a-f]{3}$/.test(s)) {
       if (!s.startsWith("#")) s = "#" + s;
       const r = s[1], g = s[2], b = s[3];
       return "#" + r + r + g + g + b + b;
     }
 
-    // some APIs might return color names — map 'red' to hex
     if (s === "red") return "#ff0000";
-
-    // unknown / unsupported format
     return "";
   }
 
-  // canonical red hex to compare against
   const canonicalRed = "#ff0000";
 
-  // get tables
-  const sourceTable = workbook.getWorksheet(sourceSheetName).getTable(sourceTableName);
-  const destTable = workbook.getWorksheet(destSheetName).getTable(destTableName);
+  // ===== GET TABLES & BASIC VALIDATION =====
+  const srcSheet = workbook.getWorksheet(sourceSheetName);
+  if (!srcSheet) throw new Error(`Source sheet "${sourceSheetName}" not found.`);
+  const srcTable = srcSheet.getTable(sourceTableName);
+  if (!srcTable) throw new Error(`Source table "${sourceTableName}" not found.`);
 
-  // get source data
-  const srcBodyRange = sourceTable.getRangeBetweenHeaderAndTotal();
-  const srcValues = srcBodyRange.getValues();
+  const dstSheet = workbook.getWorksheet(destSheetName);
+  if (!dstSheet) throw new Error(`Destination sheet "${destSheetName}" not found.`);
+  const dstTable = dstSheet.getTable(destTableName);
+  if (!dstTable) throw new Error(`Destination table "${destTableName}" not found.`);
 
-  // collect indices to move
-  const rowsToMove: number[] = [];
-  const rowsFillColor: Record<number, string> = {}; // store original color for each row
-
-  for (let i = 0; i < srcValues.length; i++) {
-    const rowRange = srcBodyRange.getRow(i);
-    const fmt = rowRange.getFormat();
-
-    // check strikethrough at row-level (font)
-    const isStruck = fmt.getFont().getStrikethrough();
-    // get fill color for the *row range* (table columns only)
-    const fillColorRaw = fmt.getFill().getColor();
-
-    const normalized = normalizeColor(fillColorRaw);
-    const isRed = normalized === canonicalRed;
-
-    // Move only when BOTH true
-    if (isStruck && isRed) {
-      rowsToMove.push(i);
-      rowsFillColor[i] = fillColorRaw ?? "";
-    }
+  // Check column counts (must match for safe copy)
+  const srcColCount = srcTable.getColumns().length;
+  const dstColCount = dstTable.getColumns().length;
+  if (srcColCount !== dstColCount) {
+    throw new Error(`Column count mismatch: source has ${srcColCount}, destination has ${dstColCount}. Aborting.`);
   }
 
-  // Nothing to do
-  if (rowsToMove.length === 0) {
-    console.log("No red+struck rows found. Nothing moved.");
+  // ===== SCAN: find rows to move (based on current table state) =====
+  const rowsToMove: { index: number; fillColorRaw: string | null }[] = [];
+
+  const srcBodyRange = srcTable.getRangeBetweenHeaderAndTotal();
+  const srcRowCount = srcBodyRange.getRowCount();
+  if (srcRowCount === 0) {
+    console.log("Source table has no rows. Nothing to do.");
     return;
   }
 
-  // Move rows one-by-one (preserve order of appearance): append to dest and apply formatting
-  // We'll process rows in ascending order so the sequence in Bin matches source order.
-  for (const srcRowIndex of rowsToMove) {
-    const values = srcBodyRange.getRow(srcRowIndex).getValues()[0] as (string | number | boolean)[];
-    // add row to destination table (append)
-    destTable.addRow(-1, values);
+  for (let i = 0; i < srcRowCount; i++) {
+    const rowRange = srcBodyRange.getRow(i);
+    const fmt = rowRange.getFormat();
+    const isStruck = fmt.getFont().getStrikethrough();
+    const fillColorRaw = fmt.getFill().getColor();
+    const normalized = normalizeColor(fillColorRaw);
+    const isRed = normalized === canonicalRed;
 
-    // apply formatting (fill + strikethrough) to the new destination row
-    const destBodyRange = destTable.getRangeBetweenHeaderAndTotal();
-    const destRowIndex = destBodyRange.getRowCount() - 1; // last row index
-    const destRowRange = destBodyRange.getRow(destRowIndex);
-
-    // use original fill color stored earlier
-    const fillColorRaw = rowsFillColor[srcRowIndex];
-    if (fillColorRaw) destRowRange.getFormat().getFill().setColor(fillColorRaw);
-    destRowRange.getFormat().getFont().setStrikethrough(true);
+    if (isStruck && isRed) {
+      rowsToMove.push({ index: i, fillColorRaw: fillColorRaw ?? "" });
+    }
   }
 
-  // Delete source rows from bottom-to-top to avoid index shifting
-  rowsToMove.sort((a, b) => b - a).forEach(rowIndex => {
-    sourceTable.deleteRowsAt(rowIndex, 1);
-  });
+  if (rowsToMove.length === 0) {
+    console.log("No rows found that are exactly red + strikethrough. Nothing moved.");
+    return;
+  }
 
-  console.log(`Moved ${rowsToMove.length} red+struck row(s) to ${destTableName} on ${destSheetName}.`);
+  console.log(`Found ${rowsToMove.length} row(s) to move (red + struck).`);
+  rowsToMove.forEach(r => console.log(`  - row index (body): ${r.index}`));
+
+  if (dryRun) {
+    console.log("Dry run enabled. No changes applied. Set dryRun = false to perform the move.");
+    return;
+  }
+
+  // ===== PERFORM MOVE: bottom->top to keep indices stable =====
+  rowsToMove
+    .sort((a, b) => b.index - a.index) // descending
+    .forEach(item => {
+      // re-obtain body range for accuracy after prior deletions
+      const bodyRange = srcTable.getRangeBetweenHeaderAndTotal();
+      const rowCountNow = bodyRange.getRowCount();
+      if (item.index < 0 || item.index >= rowCountNow) {
+        console.log(`Skipping row index ${item.index} — index out of range after prior changes.`);
+        return;
+      }
+
+      const srcRowRange = bodyRange.getRow(item.index);
+      const rowValues = srcRowRange.getValues()[0] as (string | number | boolean)[];
+
+      // Append values to dest table
+      dstTable.addRow(-1, rowValues);
+
+      // Apply per-cell formatting to newly created destination row
+      const dstBodyRange = dstTable.getRangeBetweenHeaderAndTotal();
+      const dstRowIdx = dstBodyRange.getRowCount() - 1;
+      const dstRowRange = dstBodyRange.getRow(dstRowIdx);
+
+      // copy cell-by-cell formatting (fill + font properties)
+      for (let c = 0; c < srcColCount; c++) {
+        const sCell = srcRowRange.getCell(0, c);
+        const dCell = dstRowRange.getCell(0, c);
+
+        const sFmt = sCell.getFormat();
+        const sFill = sFmt.getFill().getColor();
+        const sFont = sFmt.getFont();
+        const sFontColor = sFont.getColor();
+        const sBold = sFont.getBold();
+        const sItalic = sFont.getItalic();
+        const sStrike = sFont.getStrikethrough();
+        const sUnderline = sFont.getUnderline();
+
+        if (sFill) dCell.getFormat().getFill().setColor(sFill);
+        if (sFontColor) dCell.getFormat().getFont().setColor(sFontColor);
+        dCell.getFormat().getFont().setBold(sBold);
+        dCell.getFormat().getFont().setItalic(sItalic);
+        dCell.getFormat().getFont().setStrikethrough(sStrike);
+        if (sUnderline) dCell.getFormat().getFont().setUnderline(sUnderline);
+      }
+
+      // Now delete the source row
+      srcTable.deleteRowsAt(item.index, 1);
+      console.log(`Moved row (body index ${item.index}) to destination and deleted from source.`);
+    });
+
+  console.log(`Completed move of ${rowsToMove.length} row(s).`);
 }
