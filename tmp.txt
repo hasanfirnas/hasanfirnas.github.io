@@ -1,76 +1,138 @@
 function main(workbook: ExcelScript.Workbook) {
+
   const SOURCE_SHEET = "Sheet1";
   const SOURCE_TABLE = "OfficeForms.Table";
   const BIN_SHEET = "Bin";
   const BIN_TABLE = "Bin.Table";
 
-  const DRY_RUN = false; // 🔴 SET true to preview, false to execute
+  const sourceTable = workbook.getWorksheet(SOURCE_SHEET).getTable(SOURCE_TABLE);
+  const binTable = workbook.getWorksheet(BIN_SHEET).getTable(BIN_TABLE);
 
-  const sourceSheet = workbook.getWorksheet(SOURCE_SHEET);
-  const sourceTable = sourceSheet.getTable(SOURCE_TABLE);
+  const sourceHeaders = sourceTable.getHeaderRowRange().getValues()[0] as string[];
+  const binHeaders = binTable.getHeaderRowRange().getValues()[0] as string[];
 
-  const binSheet = workbook.getWorksheet(BIN_SHEET);
-  const binTable = binSheet.getTable(BIN_TABLE);
+  const sourceRange = sourceTable.getRangeBetweenHeaderAndTotal();
+  const sourceData = sourceRange.getValues() as (string | number | boolean)[][];
 
-  // ❗ HARD SAFETY CHECK — FILTERS MUST BE OFF
-  if (sourceSheet.getAutoFilter()) {
-    throw new Error(
-      "❌ Filters are ON in the source sheet. Please clear all filters and re-run the script."
-    );
+  // ------------------------
+  // Find Id column
+  // ------------------------
+  const idColIndex = sourceHeaders.indexOf("Id");
+  if (idColIndex === -1) {
+    throw new Error("Id column not found in source table");
   }
 
-  const sourceBody = sourceTable.getRangeBetweenHeaderAndTotal();
-  const values = sourceBody.getValues();
-  const rowCount = sourceBody.getRowCount();
-  const colCount = sourceTable.getColumns().length;
+  // ------------------------
+  // Detect RITM column
+  // ------------------------
+  const ritmRegex = /^RITM\d{4,}$/i;
+  let ritmColIndex = -1;
+  let maxHits = 0;
 
-  const rowsToMove: number[] = [];
-  const valuesToMove: (string | number | boolean)[][] = [];
+  sourceHeaders.forEach((_, colIndex) => {
+    let hits = 0;
+    for (const row of sourceData) {
+      const cell = row[colIndex];
+      if (typeof cell === "string" && ritmRegex.test(cell.trim())) {
+        hits++;
+      }
+    }
+    if (hits > maxHits) {
+      maxHits = hits;
+      ritmColIndex = colIndex;
+    }
+  });
 
-  const CANONICAL_RED = "#ff0000";
-
-  function isRed(color: string | null): boolean {
-    if (!color) return false;
-    return color.toLowerCase() === CANONICAL_RED;
+  if (ritmColIndex === -1) {
+    throw new Error("RITM column not detected");
   }
 
-  // STEP 1: Detect rows
-  for (let i = 0; i < rowCount; i++) {
-    const rowRange = sourceBody.getRow(i);
-    const struck = rowRange.getFormat().getFont().getStrikethrough();
-    const fill = rowRange.getFormat().getFill().getColor();
-
-    if (struck && isRed(fill)) {
-      rowsToMove.push(i);
-      valuesToMove.push(values[i]);
+  // ------------------------
+  // Normalize RITM values
+  // ------------------------
+  for (let i = 0; i < sourceData.length; i++) {
+    const val = sourceData[i][ritmColIndex];
+    if (typeof val === "string") {
+      sourceData[i][ritmColIndex] = val.trim();
     }
   }
 
-  console.log(`Found ${rowsToMove.length} rows to move.`);
-  rowsToMove.forEach(i => console.log(`Row index (body): ${i}`));
+  // ------------------------
+  // Group by RITM
+  // ------------------------
+  type Entry = {
+    row: (string | number | boolean)[];
+    id: number;
+  };
 
-  if (DRY_RUN) {
-    console.log("🟡 DRY RUN enabled. No changes applied.");
-    return;
+  const groups: Record<string, Entry[]> = {};
+
+  for (const row of sourceData) {
+    const ritmCell = row[ritmColIndex];
+    const idCell = row[idColIndex];
+
+    if (
+      typeof ritmCell === "string" &&
+      ritmRegex.test(ritmCell) &&
+      typeof idCell !== "boolean" &&
+      !isNaN(Number(idCell))
+    ) {
+      const key = ritmCell.toUpperCase();
+      if (!groups[key]) groups[key] = [];
+      groups[key].push({ row, id: Number(idCell) });
+    }
   }
 
-  // STEP 2: BULK ADD TO BIN
-  binTable.addRows(-1, valuesToMove);
+  const rowsToKeep: (string | number | boolean)[][] = [];
+  const rowsToBin: (string | number | boolean)[][] = [];
 
-  // STEP 3: APPLY FORMATTING TO BIN ROWS
-  const binBody = binTable.getRangeBetweenHeaderAndTotal();
-  const startRow = binBody.getRowCount() - valuesToMove.length;
+  // ------------------------
+  // Decide KEEP vs BIN
+  // ------------------------
+  for (const ritm in groups) {
+    const entries = groups[ritm];
 
-  for (let r = 0; r < valuesToMove.length; r++) {
-    const row = binBody.getRow(startRow + r);
-    row.getFormat().getFill().setColor(CANONICAL_RED);
-    row.getFormat().getFont().setStrikethrough(true);
+    if (entries.length === 1) {
+      rowsToKeep.push(entries[0].row);
+      continue;
+    }
+
+    entries.sort((a, b) => a.id - b.id);
+    const keeper = entries[entries.length - 1];
+    rowsToKeep.push(keeper.row);
+
+    for (const e of entries) {
+      if (e !== keeper) {
+        rowsToBin.push(e.row);
+      }
+    }
   }
 
-  // STEP 4: DELETE SOURCE ROWS (BOTTOM → TOP)
-  rowsToMove.sort((a, b) => b - a).forEach(index => {
-    sourceTable.deleteRowsAt(index, 1);
-  });
+  // ------------------------
+  // Move rows to Bin (column-safe mapping)
+  // ------------------------
+  for (const srcRow of rowsToBin) {
+    const binRow: (string | number | boolean)[] = [];
 
-  console.log(`✅ Successfully moved ${rowsToMove.length} rows to Bin.`);
+    for (const binHeader of binHeaders) {
+      const srcIndex = sourceHeaders.indexOf(binHeader);
+      binRow.push(srcIndex !== -1 ? srcRow[srcIndex] : "");
+    }
+
+    binTable.addRow(-1, binRow);
+  }
+
+  // ------------------------
+  // Clear source table contents
+  // ------------------------
+  if (sourceData.length > 0) {
+    sourceRange.clear(ExcelScript.ClearApplyTo.contents);
+  }
+
+  // ------------------------
+  // Rebuild source table
+  // ------------------------
+  for (const row of rowsToKeep) {
+    sourceTable.addRow(-1, row);
+  }
 }
