@@ -1,173 +1,76 @@
 function main(workbook: ExcelScript.Workbook) {
-  // ===== CONFIG =====
-  const sourceSheetName = "Sheet1";
-  const sourceTableName = "OfficeForms.Table";
-  const destSheetName = "Bin";
-  const destTableName = "Bin.Table";
+  const SOURCE_SHEET = "Sheet1";
+  const SOURCE_TABLE = "OfficeForms.Table";
+  const BIN_SHEET = "Bin";
+  const BIN_TABLE = "Bin.Table";
 
-  // Safety: dryRun = true -> only log actions. Set to false after validation.
-  let dryRun = true;
+  const DRY_RUN = false; // 🔴 SET true to preview, false to execute
 
-  // canonical red for comparison
-  const canonicalRed = "#ff0000";
+  const sourceSheet = workbook.getWorksheet(SOURCE_SHEET);
+  const sourceTable = sourceSheet.getTable(SOURCE_TABLE);
 
-  // ===== helpers =====
-  function normalizeColor(raw: string | undefined | null): string {
-    if (!raw) return "";
-    let s = raw.toString().trim().toLowerCase();
+  const binSheet = workbook.getWorksheet(BIN_SHEET);
+  const binTable = binSheet.getTable(BIN_TABLE);
 
-    // rgb(...) -> hex
-    if (s.startsWith("rgb(")) {
-      const nums = s.replace(/^rgb\(|\)$/g, "").split(",").map(x => Number(x.trim()));
-      if (nums.length === 3 && nums.every(n => !isNaN(n))) {
-        return "#" + nums.map(n => { const h = n.toString(16); return h.length === 1 ? "0"+h : h; }).join("");
-      }
-    }
-    // full hex (with or without #)
-    if (/^#?[0-9a-f]{6}$/.test(s)) { if (!s.startsWith("#")) s = "#" + s; return s; }
-    // short hex like #f00
-    if (/^#?[0-9a-f]{3}$/.test(s)) { if (!s.startsWith("#")) s = "#" + s; const r=s[1],g=s[2],b=s[3]; return "#" + r+r + g+g + b+b; }
-    if (s === "red") return "#ff0000";
-    return "";
+  // ❗ HARD SAFETY CHECK — FILTERS MUST BE OFF
+  if (sourceSheet.getAutoFilter()) {
+    throw new Error(
+      "❌ Filters are ON in the source sheet. Please clear all filters and re-run the script."
+    );
   }
 
-  // ===== open tables & validate =====
-  const srcSheet = workbook.getWorksheet(sourceSheetName);
-  if (!srcSheet) throw new Error(`Source sheet "${sourceSheetName}" not found.`);
-  const srcTable = srcSheet.getTable(sourceTableName);
-  if (!srcTable) throw new Error(`Source table "${sourceTableName}" not found.`);
+  const sourceBody = sourceTable.getRangeBetweenHeaderAndTotal();
+  const values = sourceBody.getValues();
+  const rowCount = sourceBody.getRowCount();
+  const colCount = sourceTable.getColumns().length;
 
-  const dstSheet = workbook.getWorksheet(destSheetName);
-  if (!dstSheet) throw new Error(`Destination sheet "${destSheetName}" not found.`);
-  const dstTable = dstSheet.getTable(destTableName);
-  if (!dstTable) throw new Error(`Destination table "${destTableName}" not found.`);
+  const rowsToMove: number[] = [];
+  const valuesToMove: (string | number | boolean)[][] = [];
 
-  const srcColCount = srcTable.getColumns().length;
-  const dstColCount = dstTable.getColumns().length;
-  if (srcColCount !== dstColCount) {
-    throw new Error(`Column count mismatch: source ${srcColCount} vs dest ${dstColCount}. Aborting.`);
+  const CANONICAL_RED = "#ff0000";
+
+  function isRed(color: string | null): boolean {
+    if (!color) return false;
+    return color.toLowerCase() === CANONICAL_RED;
   }
 
-  // ===== try to clear filters (if any) =====
-  // Some environments may not expose an AutoFilter API; wrap in try/catch.
-  try {
-    // Try to get the table's range and clear any autofilter on that range
-    const tableRange = srcTable.getRange();
-    // Range.getAutoFilter exists in Office Scripts; remove if present
-    const af = tableRange.getAutoFilter ? tableRange.getAutoFilter() : undefined;
-    if (af) {
-      // remove the auto filter to avoid deleteRowsAt issues
-      af.remove();
-      console.log("AutoFilter removed from source table (if present).");
-    } else {
-      // If getAutoFilter isn't available, try worksheet-level autofilter removal
-      const wsAF = srcSheet.getAutoFilter ? srcSheet.getAutoFilter() : undefined;
-      if (wsAF) {
-        wsAF.remove();
-        console.log("Worksheet AutoFilter removed.");
-      } else {
-        // If neither API exists, we continue — but the script will abort before deleting if filters remain
-        console.log("AutoFilter API not available or no active filter object detected. If filters are active, please clear them manually before proceeding.");
-      }
-    }
-  } catch (e) {
-    // don't auto-proceed if we couldn't safely remove filters — we'll verify later
-    console.log("Attempted to clear filters but encountered: " + e);
-    console.log("If filters are active on the source table, please clear them manually before running the LIVE move.");
-  }
+  // STEP 1: Detect rows
+  for (let i = 0; i < rowCount; i++) {
+    const rowRange = sourceBody.getRow(i);
+    const struck = rowRange.getFormat().getFont().getStrikethrough();
+    const fill = rowRange.getFormat().getFill().getColor();
 
-  // ===== read current source body (snapshot) =====
-  const srcBodyRange = srcTable.getRangeBetweenHeaderAndTotal();
-  const srcRowCount = srcBodyRange.getRowCount();
-  if (srcRowCount === 0) {
-    console.log("Source table has no rows. Nothing to do.");
-    return;
-  }
-  const srcValues = srcBodyRange.getValues();
-
-  // ===== find rows that are EXACTLY red + struck =====
-  const rowsToMoveIndices: number[] = [];
-  const rowsToMoveValues: (string|number|boolean)[][] = [];
-  const rowsToMoveFormats: { fillColors: (string|null)[], fontStrike: boolean[] }[] = [];
-
-  for (let i = 0; i < srcRowCount; i++) {
-    const rowRange = srcBodyRange.getRow(i);
-    const fmt = rowRange.getFormat();
-    const isStruck = fmt.getFont().getStrikethrough();
-    const fillColorRaw = fmt.getFill().getColor();
-    const normalized = normalizeColor(fillColorRaw);
-    const isRed = normalized === canonicalRed;
-
-    if (isStruck && isRed) {
-      rowsToMoveIndices.push(i);
-      rowsToMoveValues.push(srcValues[i] as (string|number|boolean)[]);
-      // capture per-cell fill colors and strike (font strike is row-level, but capture per cell color)
-      const cFills: (string|null)[] = [];
-      const cStrikes: boolean[] = [];
-      for (let c = 0; c < srcColCount; c++) {
-        const cell = rowRange.getCell(0, c);
-        cFills.push(cell.getFormat().getFill().getColor());
-        cStrikes.push(cell.getFormat().getFont().getStrikethrough());
-      }
-      rowsToMoveFormats.push({ fillColors: cFills, fontStrike: cStrikes });
+    if (struck && isRed(fill)) {
+      rowsToMove.push(i);
+      valuesToMove.push(values[i]);
     }
   }
 
-  console.log(`Found ${rowsToMoveIndices.length} red+struck row(s).`);
-  rowsToMoveIndices.forEach(i => console.log(` - row index (body): ${i}`));
+  console.log(`Found ${rowsToMove.length} rows to move.`);
+  rowsToMove.forEach(i => console.log(`Row index (body): ${i}`));
 
-  if (rowsToMoveIndices.length === 0) return;
-
-  if (dryRun) {
-    console.log("Dry run enabled. No changes applied. Set dryRun = false to perform the move.");
+  if (DRY_RUN) {
+    console.log("🟡 DRY RUN enabled. No changes applied.");
     return;
   }
 
-  // ===== LIVE: append all rows to destination in one bulk operation =====
-  // destTable.addRows(index, values[][]) accepts multiple rows — use -1 to append.
-  try {
-    dstTable.addRows(-1, rowsToMoveValues);
-  } catch (e) {
-    // If addRows with multi-row isn't supported, fall back to per-row append (still better than before).
-    console.log("Bulk addRows failed, falling back to per-row append. Error: " + e);
-    for (let r = 0; r < rowsToMoveValues.length; r++) {
-      dstTable.addRow(-1, rowsToMoveValues[r]);
-    }
+  // STEP 2: BULK ADD TO BIN
+  binTable.addRows(-1, valuesToMove);
+
+  // STEP 3: APPLY FORMATTING TO BIN ROWS
+  const binBody = binTable.getRangeBetweenHeaderAndTotal();
+  const startRow = binBody.getRowCount() - valuesToMove.length;
+
+  for (let r = 0; r < valuesToMove.length; r++) {
+    const row = binBody.getRow(startRow + r);
+    row.getFormat().getFill().setColor(CANONICAL_RED);
+    row.getFormat().getFont().setStrikethrough(true);
   }
 
-  // ===== Apply formatting to newly appended rows (block) =====
-  // Get destination body and compute new rows index range
-  const dstBodyRange = dstTable.getRangeBetweenHeaderAndTotal();
-  const dstRowCountAfter = dstBodyRange.getRowCount();
-  const firstAppendedIndex = dstRowCountAfter - rowsToMoveValues.length;
-  // Apply per-cell formatting
-  for (let rr = 0; rr < rowsToMoveValues.length; rr++) {
-    const destRowRange = dstBodyRange.getRow(firstAppendedIndex + rr);
-    const fmt = rowsToMoveFormats[rr];
-    for (let c = 0; c < srcColCount; c++) {
-      const dCell = destRowRange.getCell(0, c);
-      const fill = fmt.fillColors[c];
-      if (fill) dCell.getFormat().getFill().setColor(fill);
-      const strike = fmt.fontStrike[c];
-      dCell.getFormat().getFont().setStrikethrough(!!strike);
-      // you can copy more font properties if needed (bold/italic/color)
-    }
-  }
+  // STEP 4: DELETE SOURCE ROWS (BOTTOM → TOP)
+  rowsToMove.sort((a, b) => b - a).forEach(index => {
+    sourceTable.deleteRowsAt(index, 1);
+  });
 
-  // ===== DELETE original rows bottom->top =====
-  // Important: we already attempted to clear filters above. If filters remain active, deleteRowsAt will fail.
-  // Delete by iterating rowsToMoveIndices in descending order and calling deleteRowsAt on updated table.
-  const indicesDesc = rowsToMoveIndices.slice().sort((a,b)=>b-a);
-  for (const idx of indicesDesc) {
-    // re-evaluate body range (since deletions change it)
-    const currentBody = srcTable.getRangeBetweenHeaderAndTotal();
-    const currentRows = currentBody.getRowCount();
-    if (idx < 0 || idx >= currentRows) {
-      console.log(`Skipping delete of index ${idx} — out of range after prior operations.`);
-      continue;
-    }
-    srcTable.deleteRowsAt(idx, 1);
-  }
-
-  console.log(`Moved ${rowsToMoveValues.length} row(s) to ${destTableName}.`);
+  console.log(`✅ Successfully moved ${rowsToMove.length} rows to Bin.`);
 }
