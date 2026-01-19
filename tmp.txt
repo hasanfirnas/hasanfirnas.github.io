@@ -1,178 +1,205 @@
 function main(workbook: ExcelScript.Workbook) {
-  const SOURCE_SHEET = "Sheet1";
-  const SOURCE_TABLE = "OfficeForms.Table";
-  const BIN_SHEET = "Bin";
-  const BIN_TABLE = "Bin.Table";
+    const SOURCE_SHEET = "Sheet1";
+    const SOURCE_TABLE = "OfficeForms.Table";
+    const BIN_SHEET = "Bin";
+    const BIN_TABLE = "Bin.Table";
 
-  const sourceTable = workbook.getWorksheet(SOURCE_SHEET).getTable(SOURCE_TABLE);
-  const binTable = workbook.getWorksheet(BIN_SHEET).getTable(BIN_TABLE);
+    const sourceTable = workbook.getWorksheet(SOURCE_SHEET).getTable(SOURCE_TABLE);
+    const binTable = workbook.getWorksheet(BIN_SHEET).getTable(BIN_TABLE);
 
-  const sourceHeaders = sourceTable.getHeaderRowRange().getValues()[0] as string[];
-  const binHeaders = binTable.getHeaderRowRange().getValues()[0] as string[];
+    const sourceHeaders = sourceTable.getHeaderRowRange().getValues()[0] as string[];
+    const binHeaders = binTable.getHeaderRowRange().getValues()[0] as string[];
 
-  const sourceRange = sourceTable.getRangeBetweenHeaderAndTotal();
-  const sourceData = sourceRange.getValues() as (string | number | boolean)[][];
+    const sourceRange = sourceTable.getRangeBetweenHeaderAndTotal();
+    const sourceData = sourceRange.getValues() as(string | number | boolean)[][];
 
-  // mandatory Id column
-  const idColIndex = sourceHeaders.indexOf("Id");
-  if (idColIndex === -1) throw new Error("Id column not found in source table");
+    // mandatory Id column
+    const idColIndex = sourceHeaders.indexOf("Id");
+    if (idColIndex === -1) throw new Error("Id column not found in source table");
 
-  // detect RITM column
-  const ritmRegex = /^RITM\d{4,}$/i;
-  let ritmColIndex = -1;
-  let maxHits = 0;
-  sourceHeaders.forEach((_, colIndex) => {
-    let hits = 0;
-    for (const row of sourceData) {
-      const cell = row[colIndex];
-      if (typeof cell === "string" && ritmRegex.test(cell.trim())) hits++;
+    // detect RITM column
+    const ritmRegex = /^RITM\d{4,}$/i;
+    let ritmColIndex = -1;
+    let maxHits = 0;
+    sourceHeaders.forEach((_, colIndex) => {
+        let hits = 0;
+        for (const row of sourceData) {
+            const cell = row[colIndex];
+            if (typeof cell === "string" && ritmRegex.test(cell.trim())) hits++;
+        }
+        if (hits > maxHits) {
+            maxHits = hits;
+            ritmColIndex = colIndex;
+        }
+    });
+    if (ritmColIndex === -1) throw new Error("RITM column not detected");
+
+    // normalize RITM values in memory (trim)
+    for (let i = 0; i < sourceData.length; i++) {
+        const v = sourceData[i][ritmColIndex];
+        if (typeof v === "string") sourceData[i][ritmColIndex] = v.trim();
     }
-    if (hits > maxHits) { maxHits = hits; ritmColIndex = colIndex; }
-  });
-  if (ritmColIndex === -1) throw new Error("RITM column not detected");
 
-  // normalize RITM values in memory (trim)
-  for (let i = 0; i < sourceData.length; i++) {
-    const v = sourceData[i][ritmColIndex];
-    if (typeof v === "string") sourceData[i][ritmColIndex] = v.trim();
-  }
-
-  // build existing Bin IDs set once
-  const binRange = binTable.getRangeBetweenHeaderAndTotal();
-  const binData = binRange.getValues() as (string|number|boolean)[][];
-  const binIdColIndex = binHeaders.indexOf("Id");
-  const existingBinIds = new Set<string>();
-  if (binIdColIndex !== -1) {
-    for (const brow of binData) {
-      const bid = brow[binIdColIndex];
-      if (bid !== null && bid !== undefined && String(bid).toString().trim() !== "") {
-        existingBinIds.add(String(bid).toString().trim());
-      }
+    // build existing Bin IDs set once
+    const binRange = binTable.getRangeBetweenHeaderAndTotal();
+    const binData = binRange.getValues() as(string | number | boolean)[][];
+    const binIdColIndex = binHeaders.indexOf("Id");
+    const existingBinIds = new Set < string > ();
+    if (binIdColIndex !== -1) {
+        for (const brow of binData) {
+            const bid = brow[binIdColIndex];
+            if (bid !== null && bid !== undefined && String(bid).toString().trim() !== "") {
+                existingBinIds.add(String(bid).toString().trim());
+            }
+        }
     }
-  }
-  // local counter for bin rows (avoid repeated range queries)
-  let binRowCount = binRange ? binRange.getRowCount() : 0;
+    // local counter for bin rows (avoid repeated range queries)
+    let binRowCount = binRange ? binRange.getRowCount() : 0;
 
-  // Helper: check formatting but ONLY for RITM cell and Id cell (2 calls per row)
-  function isRowMarkedByFormat(rowIndex: number): boolean {
-    try {
-      // check RITM cell
-      const ritmCell = sourceRange.getCell(rowIndex, ritmColIndex);
-      const ritmFill = ritmCell.getFormat().getFill().getColor();
-      if (ritmFill && (String(ritmFill).toLowerCase() === "red" || String(ritmFill).toLowerCase() === "#ff0000")) return true;
-      if (ritmCell.getFormat().getFont().getStrikethrough()) return true;
-      // check Id cell (small additional cost)
-      const idCell = sourceRange.getCell(rowIndex, idColIndex);
-      const idFill = idCell.getFormat().getFill().getColor();
-      if (idFill && (String(idFill).toLowerCase() === "red" || String(idFill).toLowerCase() === "#ff0000")) return true;
-      if (idCell.getFormat().getFont().getStrikethrough()) return true;
-    } catch (e) {
-      // formatting read may throw for weird cells — ignore
+    // Helper: check formatting but ONLY for RITM cell and Id cell (2 calls per row)
+    function isRowMarkedByFormat(rowIndex: number): boolean {
+        try {
+            let hasRed = false;
+            let hasStrike = false;
+
+            const ritmCell = sourceRange.getCell(rowIndex, ritmColIndex);
+            const ritmFill = ritmCell.getFormat().getFill().getColor();
+            if (ritmFill && (String(ritmFill).toLowerCase() === "red" || String(ritmFill).toLowerCase() === "#ff0000")) {
+                hasRed = true;
+            }
+            if (ritmCell.getFormat().getFont().getStrikethrough()) {
+                hasStrike = true;
+            }
+
+            const idCell = sourceRange.getCell(rowIndex, idColIndex);
+            const idFill = idCell.getFormat().getFill().getColor();
+            if (idFill && (String(idFill).toLowerCase() === "red" || String(idFill).toLowerCase() === "#ff0000")) {
+                hasRed = true;
+            }
+            if (idCell.getFormat().getFont().getStrikethrough()) {
+                hasStrike = true;
+            }
+
+            // ✅ ONLY move if BOTH conditions are true
+            return hasRed && hasStrike;
+        } catch (_) {
+            return false;
+        }
     }
-    return false;
-  }
 
-  // GROUP by RITM (cheap, in-memory)
-  type Entry = { rowIndex: number; row: (string|number|boolean)[]; id: number | null; ritm: string | null };
-  const groups: Record<string, Entry[]> = {};
-  const emptyRitmIndexes = new Set<number>();
+    // GROUP by RITM (cheap, in-memory)
+    type Entry = {
+        rowIndex: number;row: (string | number | boolean)[];id: number | null;ritm: string | null
+    };
+    const groups: Record < string, Entry[] > = {};
+    const emptyRitmIndexes = new Set < number > ();
 
-  for (let i = 0; i < sourceData.length; i++) {
-    const row = sourceData[i];
-    const ritmRaw = row[ritmColIndex];
-    const idCell = row[idColIndex];
-    const ritmStr = (typeof ritmRaw === "string") ? ritmRaw.trim() : (ritmRaw ? String(ritmRaw) : "");
-    const idStr = (idCell !== null && idCell !== undefined) ? String(idCell).toString().trim() : "";
+    for (let i = 0; i < sourceData.length; i++) {
+        const row = sourceData[i];
+        const ritmRaw = row[ritmColIndex];
+        const idCell = row[idColIndex];
+        const ritmStr = (typeof ritmRaw === "string") ? ritmRaw.trim() : (ritmRaw ? String(ritmRaw) : "");
+        const idStr = (idCell !== null && idCell !== undefined) ? String(idCell).toString().trim() : "";
 
-    if (!ritmStr) {
-      emptyRitmIndexes.add(i); // empty RITM must be binned
+        if (!ritmStr) {
+            emptyRitmIndexes.add(i); // empty RITM must be binned
+        }
+        if (ritmStr && ritmRegex.test(ritmStr) && idStr !== "" && !isNaN(Number(idStr))) {
+            const key = ritmStr.toUpperCase();
+            if (!groups[key]) groups[key] = [];
+            groups[key].push({
+                rowIndex: i,
+                row,
+                id: Number(idStr),
+                ritm: key
+            });
+        }
     }
-    if (ritmStr && ritmRegex.test(ritmStr) && idStr !== "" && !isNaN(Number(idStr))) {
-      const key = ritmStr.toUpperCase();
-      if (!groups[key]) groups[key] = [];
-      groups[key].push({ rowIndex: i, row, id: Number(idStr), ritm: key });
-    }
-  }
 
-  // compute duplicates -> mark non-keeper indexes for bin
-  const markedForBin = new Set<number>();
-  for (const key in groups) {
-    const entries = groups[key];
-    if (entries.length === 1) {
-      // single keep (unless formatting says move and you want that handled below)
-      continue;
+    // compute duplicates -> mark non-keeper indexes for bin
+    const markedForBin = new Set < number > ();
+    for (const key in groups) {
+        const entries = groups[key];
+        if (entries.length === 1) {
+            // single keep (unless formatting says move and you want that handled below)
+            continue;
+        }
+        entries.sort((a, b) => (a.id as number) - (b.id as number));
+        const keeper = entries[entries.length - 1];
+        for (const e of entries) {
+            if (e.rowIndex !== keeper.rowIndex) markedForBin.add(e.rowIndex);
+        }
     }
-    entries.sort((a,b) => (a.id as number) - (b.id as number));
-    const keeper = entries[entries.length - 1];
-    for (const e of entries) {
-      if (e.rowIndex !== keeper.rowIndex) markedForBin.add(e.rowIndex);
-    }
-  }
-  // add all empty-RITM rows
-  for (const idx of emptyRitmIndexes) markedForBin.add(idx);
+    // add all empty-RITM rows
+    for (const idx of emptyRitmIndexes) markedForBin.add(idx);
 
-  // Now check formatting for rows we didn't yet mark: if formatted, add them.
-  // To minimize checks, loop all rows but only call formatting if not already marked.
-  for (let i = 0; i < sourceData.length; i++) {
-    if (markedForBin.has(i)) continue;
-    // Check only id & ritm cells for formatting
-    if (isRowMarkedByFormat(i)) markedForBin.add(i);
-  }
-
-  // Build array of entries to bin (preserve their data)
-  const rowsToBin: Entry[] = [];
-  for (const idx of Array.from(markedForBin)) {
-    if (idx >= 0 && idx < sourceData.length) {
-      const r = sourceData[idx];
-      const idCell = r[idColIndex];
-      const idNum = (idCell !== null && idCell !== undefined && String(idCell).toString().trim() !== "") ? Number(String(idCell).toString().trim()) : null;
-      rowsToBin.push({ rowIndex: idx, row: r, id: idNum, ritm: (typeof r[ritmColIndex] === "string" ? r[ritmColIndex].toString().trim().toUpperCase() : null) });
+    // Now check formatting for rows we didn't yet mark: if formatted, add them.
+    // To minimize checks, loop all rows but only call formatting if not already marked.
+    for (let i = 0; i < sourceData.length; i++) {
+        if (markedForBin.has(i)) continue;
+        // Check only id & ritm cells for formatting
+        if (isRowMarkedByFormat(i)) markedForBin.add(i);
     }
-  }
 
-  // Move rows to Bin with duplication check and immediate formatting using local binRowCount
-  for (const e of rowsToBin) {
-    const srcRow = e.row;
-    const idValueStr = e.id !== null ? String(e.id).toString().trim() : "";
-    if (idValueStr !== "" && existingBinIds.has(idValueStr)) {
-      // already in bin: don't add duplicate
-      continue;
+    // Build array of entries to bin (preserve their data)
+    const rowsToBin: Entry[] = [];
+    for (const idx of Array.from(markedForBin)) {
+        if (idx >= 0 && idx < sourceData.length) {
+            const r = sourceData[idx];
+            const idCell = r[idColIndex];
+            const idNum = (idCell !== null && idCell !== undefined && String(idCell).toString().trim() !== "") ? Number(String(idCell).toString().trim()) : null;
+            rowsToBin.push({
+                rowIndex: idx,
+                row: r,
+                id: idNum,
+                ritm: (typeof r[ritmColIndex] === "string" ? r[ritmColIndex].toString().trim().toUpperCase() : null)
+            });
+        }
     }
-    // map columns safely
-    const binRow: (string|number|boolean)[] = [];
-    for (const binHeader of binHeaders) {
-      const srcIndex = sourceHeaders.indexOf(binHeader);
-      binRow.push(srcIndex !== -1 ? srcRow[srcIndex] : "");
-    }
-    binTable.addRow(-1, binRow);
 
-    // update local counter & existingBinIds
-    // we assume the added row is appended at binRowCount index
-    const addedId = (binIdColIndex !== -1) ? String(binRow[binIdColIndex]).toString().trim() : "";
-    if (addedId) existingBinIds.add(addedId);
-    // format the just-added row (use binTable range + local index)
-    try {
-      const newBinRange = binTable.getRangeBetweenHeaderAndTotal();
-      const lastIndex = newBinRange.getRowCount() - 1; // should equal binRowCount
-      if (lastIndex >= 0) {
-        const lastRowRange = newBinRange.getRow(lastIndex);
-        lastRowRange.getFormat().getFill().setColor("red");
-        lastRowRange.getFormat().getFont().setStrikethrough(true);
-      }
-    } catch (err) {
-      // ignore formatting errors
-    }
-    binRowCount++;
-  }
+    // Move rows to Bin with duplication check and immediate formatting using local binRowCount
+    for (const e of rowsToBin) {
+        const srcRow = e.row;
+        const idValueStr = e.id !== null ? String(e.id).toString().trim() : "";
+        if (idValueStr !== "" && existingBinIds.has(idValueStr)) {
+            // already in bin: don't add duplicate
+            continue;
+        }
+        // map columns safely
+        const binRow: (string | number | boolean)[] = [];
+        for (const binHeader of binHeaders) {
+            const srcIndex = sourceHeaders.indexOf(binHeader);
+            binRow.push(srcIndex !== -1 ? srcRow[srcIndex] : "");
+        }
+        binTable.addRow(-1, binRow);
 
-  // Delete source rows bottom->top (use unique descending indexes)
-  const indexesToDelete = Array.from(new Set(rowsToBin.map(x => x.rowIndex)));
-  indexesToDelete.sort((a,b) => b - a);
-  for (const idx of indexesToDelete) {
-    if (idx >= 0 && idx < sourceRange.getRowCount()) {
-      sourceRange.getRow(idx).delete(ExcelScript.DeleteShiftDirection.up);
+        // update local counter & existingBinIds
+        // we assume the added row is appended at binRowCount index
+        const addedId = (binIdColIndex !== -1) ? String(binRow[binIdColIndex]).toString().trim() : "";
+        if (addedId) existingBinIds.add(addedId);
+        // format the just-added row (use binTable range + local index)
+        try {
+            const newBinRange = binTable.getRangeBetweenHeaderAndTotal();
+            const lastIndex = newBinRange.getRowCount() - 1; // should equal binRowCount
+            if (lastIndex >= 0) {
+                const lastRowRange = newBinRange.getRow(lastIndex);
+                lastRowRange.getFormat().getFill().setColor("red");
+                lastRowRange.getFormat().getFont().setStrikethrough(true);
+            }
+        } catch (err) {
+            // ignore formatting errors
+        }
+        binRowCount++;
     }
-  }
 
-  // Done
+    // Delete source rows bottom->top (use unique descending indexes)
+    const indexesToDelete = Array.from(new Set(rowsToBin.map(x => x.rowIndex)));
+    indexesToDelete.sort((a, b) => b - a);
+    for (const idx of indexesToDelete) {
+        if (idx >= 0 && idx < sourceRange.getRowCount()) {
+            sourceRange.getRow(idx).delete(ExcelScript.DeleteShiftDirection.up);
+        }
+    }
+
+    // Done
 }
