@@ -12,8 +12,8 @@ function main(workbook: ExcelScript.Workbook) {
   // CMDB Status values that trigger move to bin (Rule 3)
   const STATUS_VALUES_TO_BIN = ["application team rejected", "cancelled", "unauthorized submission"];
   
-  // Status values that should NOT be changed to "bin-duplicate"
-  const PRESERVE_STATUSES = ["application team rejected", "unauthorized submission"];
+  // STATUS FIX 1: Added "cancelled" to preserve list
+  const PRESERVE_STATUSES = ["application team rejected", "unauthorized submission", "cancelled"];
   
   // LOGGING CONTROL - COMMENT THIS LINE FOR PRODUCTION/POWER AUTOMATE
   const ENABLE_LOGGING = true;
@@ -40,7 +40,7 @@ function main(workbook: ExcelScript.Workbook) {
       
       console.log("📋 Log sheet created: 'Script_Logs'");
     } catch (error) {
-      console.warn("⚠️ Could not create log sheet. Continuing without logs.");
+      console.log("⚠️ Could not create log sheet. Continuing without logs.");
     }
   }
   
@@ -66,7 +66,7 @@ function main(workbook: ExcelScript.Workbook) {
   const outputSheet = workbook.getWorksheet(OUTPUT_SHEET);
   
   if (!sourceSheet || !binSheet) {
-    console.error("❌ Source or Bin sheet not found");
+    console.log("❌ Source or Bin sheet not found");
     return;
   }
   
@@ -74,7 +74,7 @@ function main(workbook: ExcelScript.Workbook) {
   const binTable = binSheet.getTable(BIN_TABLE);
   
   if (!sourceTable || !binTable) {
-    console.error("❌ Source or Bin table not found");
+    console.log("❌ Source or Bin table not found");
     return;
   }
   
@@ -94,7 +94,7 @@ function main(workbook: ExcelScript.Workbook) {
   const cmdbStatusColIndex = sourceHeaders.indexOf("CMDB Status");
   
   if (idColIndex === -1) {
-    console.error("❌ 'Id' column not found in source table");
+    console.log("❌ 'Id' column not found in source table");
     return;
   }
   
@@ -112,7 +112,7 @@ function main(workbook: ExcelScript.Workbook) {
         outputCmdbColIndex = outputHeaders.indexOf("CMDB Status");
       }
     } catch (e) {
-      console.warn("⚠️ Output table not found or accessible. CMDB updates will only affect source sheet.");
+      console.log("⚠️ Output table not found or accessible. CMDB updates will only affect source sheet.");
     }
   }
   
@@ -250,6 +250,9 @@ function main(workbook: ExcelScript.Workbook) {
         const sourceStatusCell = sourceRange.getCell(sourceRowIndex, cmdbStatusColIndex);
         sourceStatusCell.setValue("bin-duplicate");
         
+        // CRITICAL FIX 2: Update the sourceData array too!
+        sourceData[sourceRowIndex][cmdbStatusColIndex] = "bin-duplicate";
+        
         // Update output sheet if available
         if (outputTable && outputIdColIndex !== -1 && outputCmdbColIndex !== -1) {
           const outputRange = outputTable.getRangeBetweenHeaderAndTotal();
@@ -268,14 +271,17 @@ function main(workbook: ExcelScript.Workbook) {
         } else {
           addLog(rowIdStr, ritmStr, "UPDATE_STATUS", `Updated source sheet to 'bin-duplicate'`);
         }
+      } else {
+        // If status is "cancelled", "application team rejected", or "unauthorized submission"
+        addLog(rowIdStr, ritmStr, "PRESERVE_STATUS", `Keeping original status: '${statusStr}'`);
       }
     }
     
-    // STEP 2: Move to Bin table
+    // STEP 2: Move to Bin table (NOW with updated data)
     const newBinRow: (string | number | boolean)[] = [];
     for (const binHeader of binHeaders) {
       const sourceColIndex = sourceHeaders.indexOf(binHeader);
-      newBinRow.push(sourceColIndex !== -1 ? sourceRow[sourceColIndex] : "");
+      newBinRow.push(sourceColIndex !== -1 ? sourceData[sourceRowIndex][sourceColIndex] : "");
     }
     
     binTable.addRow(-1, newBinRow);
