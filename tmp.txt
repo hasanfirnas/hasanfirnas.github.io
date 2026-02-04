@@ -429,9 +429,10 @@ function main(workbook: ExcelScript.Workbook) {
     }
     
     if (existingBinIds.has(rowIdStr)) {
-      addLog(rowIdStr, ritmStr, "SKIP_DUPLICATE_ID", "ID already exists in bin");
-      skippedCount++;
-      continue;
+        addLog(rowIdStr, ritmStr, "ALREADY_IN_BIN", "ID exists in bin - will delete from source only");
+        // DON'T skip - still add to deletion list!
+        rowsToDelete.push(sourceRowIndex);  // ← STILL DELETE from source
+        continue;  // But skip moving/updating
     }
     
     // Determine what the new status should be
