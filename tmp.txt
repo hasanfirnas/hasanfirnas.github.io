@@ -1,230 +1,333 @@
 function main(workbook: ExcelScript.Workbook) {
   // ====================
-  // 1. CONFIGURATION
+  // 1. CONFIGURATION & TOGGLES
   // ====================
   const SOURCE_SHEET = "Sheet1";
   const SOURCE_TABLE = "OfficeForms.Table";
   const BIN_SHEET = "Bin";
   const BIN_TABLE = "Bin.Table";
+  const OUTPUT_SHEET = "Output";
+  const OUTPUT_TABLE = "OuputTabel"; // As per your spelling
   
-  // Words in the CMDB Status column that trigger a move to the bin
+  // CMDB Status values that trigger move to bin (Rule 3)
   const STATUS_VALUES_TO_BIN = ["application team rejected", "cancelled", "unauthorized submission"];
   
-  console.log("🚀 Starting Bin Automation Script");
-  console.log(`   Source: ${SOURCE_SHEET} -> ${SOURCE_TABLE}`);
-  console.log(`   Destination: ${BIN_SHEET} -> ${BIN_TABLE}`);
-
+  // Status values that should NOT be changed to "bin-duplicate"
+  const PRESERVE_STATUSES = ["application team rejected", "unauthorized submission"];
+  
+  // LOGGING CONTROL - COMMENT THIS LINE FOR PRODUCTION/POWER AUTOMATE
+  const ENABLE_LOGGING = true;
+  
   // ====================
-  // 2. GET TABLES & DATA
+  // 2. LOGGING SYSTEM (Development Only)
   // ====================
+  let logSheet: ExcelScript.Worksheet | null = null;
+  let logTable: ExcelScript.Table | null = null;
+  
+  if (ENABLE_LOGGING) {
+    try {
+      // Remove existing log sheet if it exists
+      try {
+        const oldLogSheet = workbook.getWorksheet("Script_Logs");
+        oldLogSheet.delete();
+      } catch (e) { /* Sheet doesn't exist */ }
+      
+      // Create new log sheet
+      logSheet = workbook.addWorksheet("Script_Logs");
+      logSheet.getRange("A1:E1").setValues([["Timestamp", "Row_ID", "RITM", "Action", "Details"]]);
+      logTable = logSheet.addTable("A1:E1", true);
+      logTable.setName("ScriptLogs");
+      
+      console.log("📋 Log sheet created: 'Script_Logs'");
+    } catch (error) {
+      console.warn("⚠️ Could not create log sheet. Continuing without logs.");
+    }
+  }
+  
+  function addLog(rowId: string, ritm: string, action: string, details: string) {
+    if (!ENABLE_LOGGING || !logTable) return;
+    
+    try {
+      const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
+      logTable.addRow(-1, [timestamp, rowId, ritm, action, details]);
+    } catch (e) {
+      // Silent fail for logging errors
+    }
+  }
+  
+  // ====================
+  // 3. INITIALIZATION
+  // ====================
+  console.log("🚀 Starting Enhanced Bin Automation");
+  
+  // Load all worksheets and tables
   const sourceSheet = workbook.getWorksheet(SOURCE_SHEET);
   const binSheet = workbook.getWorksheet(BIN_SHEET);
+  const outputSheet = workbook.getWorksheet(OUTPUT_SHEET);
+  
+  if (!sourceSheet || !binSheet) {
+    console.error("❌ Source or Bin sheet not found");
+    return;
+  }
   
   const sourceTable = sourceSheet.getTable(SOURCE_TABLE);
   const binTable = binSheet.getTable(BIN_TABLE);
   
-  console.log("✅ Tables loaded successfully.");
-
-  // Get headers
-  const sourceHeaders = sourceTable.getHeaderRowRange().getValues()[0] as string[];
-  const binHeaders = binTable.getHeaderRowRange().getValues()[0] as string[];
+  if (!sourceTable || !binTable) {
+    console.error("❌ Source or Bin table not found");
+    return;
+  }
   
-  // Get all source data
+  // Get source data
+  const sourceHeaders = sourceTable.getHeaderRowRange().getValues()[0] as string[];
   const sourceRange = sourceTable.getRangeBetweenHeaderAndTotal();
   const sourceData = sourceRange.getValues() as (string | number | boolean)[][];
   const totalSourceRows = sourceData.length;
-  console.log(`📊 Processing ${totalSourceRows} rows from source table.`);
-
+  
+  console.log(`📊 Processing ${totalSourceRows} rows from source`);
+  
   // ====================
-  // 3. FIND CRITICAL COLUMNS
+  // 4. FIND COLUMN INDICES
   // ====================
-  // Find column indices
   const idColIndex = sourceHeaders.indexOf("Id");
-  const ritmColIndex = sourceHeaders.findIndex(h => /^RITM/i.test(h)); // Finds first header starting with "RITM"
+  const ritmColIndex = sourceHeaders.findIndex(h => /^RITM/i.test(h));
   const cmdbStatusColIndex = sourceHeaders.indexOf("CMDB Status");
-
-  // Log column findings
-  console.log(`🔍 Column Mapping: Id -> column ${idColIndex+1}, RITM -> column ${ritmColIndex+1}, CMDB Status -> column ${cmdbStatusColIndex+1}`);
   
-  // Validate essential columns
   if (idColIndex === -1) {
-    console.error("❌ CRITICAL: 'Id' column not found in source table. Script stopped.");
-    return; // Exit instead of throw for better UX
+    console.error("❌ 'Id' column not found in source table");
+    return;
   }
-  if (ritmColIndex === -1) {
-    console.warn("⚠️  No column starting with 'RITM' found. Duplicate and empty checks for RITM will be skipped.");
+  
+  // Prepare output sheet if needed for updates
+  let outputTable: ExcelScript.Table | undefined;
+  let outputIdColIndex = -1;
+  let outputCmdbColIndex = -1;
+  
+  if (outputSheet) {
+    try {
+      outputTable = outputSheet.getTable(OUTPUT_TABLE);
+      if (outputTable) {
+        const outputHeaders = outputTable.getHeaderRowRange().getValues()[0] as string[];
+        outputIdColIndex = outputHeaders.indexOf("Id");
+        outputCmdbColIndex = outputHeaders.indexOf("CMDB Status");
+      }
+    } catch (e) {
+      console.warn("⚠️ Output table not found or accessible. CMDB updates will only affect source sheet.");
+    }
   }
   
   // ====================
-  // 4. BUILD ID SET FOR BIN (Avoid Duplicates)
+  // 5. EXISTING BIN IDs (Avoid Duplicates)
   // ====================
   const binRange = binTable.getRangeBetweenHeaderAndTotal();
   const binData = binRange.getValues() as (string | number | boolean)[][];
+  const binHeaders = binTable.getHeaderRowRange().getValues()[0] as string[];
   const binIdColIndex = binHeaders.indexOf("Id");
   const existingBinIds = new Set<string>();
   
   if (binIdColIndex !== -1) {
-    for (const binRow of binData) {
-      const binId = binRow[binIdColIndex];
-      if (binId != null && String(binId).trim() !== "") {
-        existingBinIds.add(String(binId).trim());
+    for (const row of binData) {
+      const id = row[binIdColIndex];
+      if (id != null && String(id).trim() !== "") {
+        existingBinIds.add(String(id).trim());
       }
     }
-    console.log(`📦 Bin already contains ${existingBinIds.size} unique IDs. These will not be re-added.`);
   }
-
+  
   // ====================
-  // 5. IDENTIFY ROWS TO MOVE
+  // 6. IDENTIFY ROWS TO MOVE (Three Rules)
   // ====================
-  const rowsMarkedForBin = new Set<number>(); // Stores source row indices (0-based) to move
-  const reasonForMove: { [key: number]: string } = {}; // Maps row index to reason
-
-  // ----- RULE 1: Find Duplicate RITMs -----
+  const rowsMarkedForBin = new Set<number>();
+  const rowReasons: { [key: number]: string } = {};
+  const rowStatuses: { [key: number]: string } = {};
+  
+  // RULE 1: Duplicate RITMs (Keep newest/highest ID)
   if (ritmColIndex !== -1) {
     const ritmGroups: { [key: string]: { rowIndex: number, id: number }[] } = {};
     
-    // Group rows by their RITM value
     for (let i = 0; i < sourceData.length; i++) {
-      const row = sourceData[i];
-      const ritmValue = row[ritmColIndex];
-      const idValue = row[idColIndex];
+      const ritmValue = sourceData[i][ritmColIndex];
+      const idValue = sourceData[i][idColIndex];
       
-      // Only process rows with a valid RITM and ID
-      if (ritmValue && String(ritmValue).trim() !== "" && idValue != null && !isNaN(Number(idValue))) {
+      if (ritmValue && String(ritmValue).trim() !== "" && idValue != null) {
         const ritmKey = String(ritmValue).trim().toUpperCase();
-        if (!ritmGroups[ritmKey]) ritmGroups[ritmKey] = [];
-        ritmGroups[ritmKey].push({ rowIndex: i, id: Number(idValue) });
+        const idNum = Number(idValue);
+        
+        if (!isNaN(idNum)) {
+          if (!ritmGroups[ritmKey]) ritmGroups[ritmKey] = [];
+          ritmGroups[ritmKey].push({ rowIndex: i, id: idNum });
+        }
       }
     }
     
-    // For each RITM group, keep the newest (highest ID) and mark others
     for (const ritmKey in ritmGroups) {
       const entries = ritmGroups[ritmKey];
       if (entries.length > 1) {
-        // Sort by ID ascending, so the last entry is the newest
         entries.sort((a, b) => a.id - b.id);
         const keeper = entries[entries.length - 1];
         
         for (const entry of entries) {
           if (entry.rowIndex !== keeper.rowIndex) {
             rowsMarkedForBin.add(entry.rowIndex);
-            reasonForMove[entry.rowIndex] = `Duplicate RITM: '${ritmKey}'. Newer ID ${keeper.id} kept.`;
-            console.log(`   ➡️ Row ${entry.rowIndex + 2} (ID:${entry.id}): Marked. ${reasonForMove[entry.rowIndex]}`);
+            rowReasons[entry.rowIndex] = `Duplicate RITM '${ritmKey}'`;
+            addLog(String(entry.id), ritmKey, "MARK_DUPLICATE", `Older duplicate of ID ${keeper.id}`);
           }
         }
       }
     }
   }
-
-  // ----- RULE 2: Empty RITM Cells -----
+  
+  // RULE 2: Empty RITM Cells
   if (ritmColIndex !== -1) {
     for (let i = 0; i < sourceData.length; i++) {
-      // Skip rows already marked by Rule 1
       if (rowsMarkedForBin.has(i)) continue;
       
       const ritmValue = sourceData[i][ritmColIndex];
-      const idValue = sourceData[i][idColIndex];
-      // Check if RITM cell is null, undefined, or empty string after trimming
       if (ritmValue == null || String(ritmValue).trim() === "") {
         rowsMarkedForBin.add(i);
-        reasonForMove[i] = "RITM cell is empty.";
-        console.log(`   ➡️ Row ${i + 2} (ID:${idValue}): Marked. ${reasonForMove[i]}`);
+        rowReasons[i] = "Empty RITM";
+        const idValue = sourceData[i][idColIndex];
+        addLog(String(idValue), "", "MARK_EMPTY_RITM", "RITM cell is empty");
       }
     }
   }
-
-  // ----- RULE 3: Specific CMDB Status Values -----
+  
+  // RULE 3: Specific CMDB Status Values
   if (cmdbStatusColIndex !== -1) {
     for (let i = 0; i < sourceData.length; i++) {
-      if (rowsMarkedForBin.has(i)) continue; // Skip if already marked
+      if (rowsMarkedForBin.has(i)) continue;
       
       const statusValue = sourceData[i][cmdbStatusColIndex];
-      const idValue = sourceData[i][idColIndex];
-      
       if (statusValue != null) {
         const statusStr = String(statusValue).toLowerCase().trim();
         if (STATUS_VALUES_TO_BIN.some(badStatus => statusStr === badStatus.toLowerCase())) {
           rowsMarkedForBin.add(i);
-          reasonForMove[i] = `CMDB Status is '${statusValue}'.`;
-          console.log(`   ➡️ Row ${i + 2} (ID:${idValue}): Marked. ${reasonForMove[i]}`);
+          rowReasons[i] = `CMDB Status: '${statusValue}'`;
+          rowStatuses[i] = String(statusValue); // Store original status
+          const idValue = sourceData[i][idColIndex];
+          addLog(String(idValue), "", "MARK_STATUS", `Status: ${statusValue}`);
         }
       }
     }
-  } else {
-    console.warn("⚠️  'CMDB Status' column not found. Rule 3 will be skipped.");
   }
-
-  console.log(`✅ Analysis complete. ${rowsMarkedForBin.size} rows marked for moving to bin.`);
-
+  
+  console.log(`✅ Analysis complete: ${rowsMarkedForBin.size} rows to process`);
+  
   // ====================
-  // 6. MOVE ROWS TO BIN TABLE
+  // 7. UPDATE CMDB STATUS & MOVE TO BIN
   // ====================
-  const rowsToBinIndices = Array.from(rowsMarkedForBin).sort((a, b) => b - a); // Sort descending for deletion
+  const rowsToProcess = Array.from(rowsMarkedForBin).sort((a, b) => b - a); // Descending for safe deletion
   let movedCount = 0;
   let skippedCount = 0;
-
-  console.log("--- Starting Move Process ---");
+  let updatedCount = 0;
   
-  for (const sourceRowIndex of rowsToBinIndices) {
+  for (const sourceRowIndex of rowsToProcess) {
     const sourceRow = sourceData[sourceRowIndex];
     const rowId = sourceRow[idColIndex];
     const rowIdStr = rowId != null ? String(rowId).trim() : "";
     
-    // Skip if ID is empty or already exists in bin
+    // Skip if no ID or already in bin
     if (rowIdStr === "" || existingBinIds.has(rowIdStr)) {
-      const skipReason = rowIdStr === "" ? "ID is empty" : `ID ${rowIdStr} already in bin`;
-      console.log(`   ⏭️ Skipping row ${sourceRowIndex + 2}: ${skipReason}.`);
       skippedCount++;
       continue;
     }
     
-    // Map source columns to bin columns
+    const ritmValue = ritmColIndex !== -1 ? sourceRow[ritmColIndex] : "";
+    const ritmStr = ritmValue != null ? String(ritmValue).trim() : "";
+    
+    // STEP 1: Update CMDB Status if needed
+    if (cmdbStatusColIndex !== -1) {
+      const currentStatus = sourceRow[cmdbStatusColIndex];
+      const statusStr = currentStatus != null ? String(currentStatus).trim() : "";
+      
+      // Check if we should update to "bin-duplicate"
+      const shouldUpdate = statusStr !== "" && 
+                          !PRESERVE_STATUSES.some(preserve => 
+                            statusStr.toLowerCase() === preserve.toLowerCase());
+      
+      if (shouldUpdate) {
+        // Update source sheet
+        const sourceStatusCell = sourceRange.getCell(sourceRowIndex, cmdbStatusColIndex);
+        sourceStatusCell.setValue("bin-duplicate");
+        
+        // Update output sheet if available
+        if (outputTable && outputIdColIndex !== -1 && outputCmdbColIndex !== -1) {
+          const outputRange = outputTable.getRangeBetweenHeaderAndTotal();
+          const outputData = outputRange.getValues() as (string | number | boolean)[][];
+          
+          for (let j = 0; j < outputData.length; j++) {
+            const outputId = outputData[j][outputIdColIndex];
+            if (outputId != null && String(outputId).trim() === rowIdStr) {
+              const outputStatusCell = outputRange.getCell(j, outputCmdbColIndex);
+              outputStatusCell.setValue("bin-duplicate");
+              updatedCount++;
+              addLog(rowIdStr, ritmStr, "UPDATE_STATUS", `Updated both sheets to 'bin-duplicate'`);
+              break;
+            }
+          }
+        } else {
+          addLog(rowIdStr, ritmStr, "UPDATE_STATUS", `Updated source sheet to 'bin-duplicate'`);
+        }
+      }
+    }
+    
+    // STEP 2: Move to Bin table
     const newBinRow: (string | number | boolean)[] = [];
     for (const binHeader of binHeaders) {
       const sourceColIndex = sourceHeaders.indexOf(binHeader);
       newBinRow.push(sourceColIndex !== -1 ? sourceRow[sourceColIndex] : "");
     }
     
-    // Add the row to the bin table
     binTable.addRow(-1, newBinRow);
-    if (rowIdStr) existingBinIds.add(rowIdStr); // Update the set
+    existingBinIds.add(rowIdStr);
     movedCount++;
     
-    console.log(`   ✅ MOVED: Row ${sourceRowIndex + 2} (ID:${rowIdStr}, Reason: ${reasonForMove[sourceRowIndex]})`);
+    // STEP 3: Apply strikethrough in Bin
+    try {
+      const newBinRange = binTable.getRangeBetweenHeaderAndTotal();
+      const lastRowIndex = newBinRange.getRowCount() - 1;
+      if (lastRowIndex >= 0) {
+        const lastRow = newBinRange.getRow(lastRowIndex);
+        lastRow.getFormat().getFont().setStrikethrough(true);
+      }
+    } catch (e) {
+      // Silent fail on formatting
+    }
+    
+    addLog(rowIdStr, ritmStr, "MOVED_TO_BIN", `Reason: ${rowReasons[sourceRowIndex]}`);
   }
   
-  console.log(`--- Move Process Complete ---`);
-  console.log(`   Moved: ${movedCount} rows`);
-  console.log(`   Skipped: ${skippedCount} rows (duplicate or empty ID)`);
-
   // ====================
-  // 7. DELETE ROWS FROM SOURCE
+  // 8. DELETE FROM SOURCE
   // ====================
-  if (rowsToBinIndices.length > 0) {
-    console.log("🧹 Cleaning up source table...");
-    // Delete from bottom to top to maintain correct indices
-    for (const sourceRowIndex of rowsToBinIndices) {
-      // Only delete if the row hasn't been skipped (still exists)
-      if (sourceRowIndex < sourceRange.getRowCount()) {
-        sourceRange.getRow(sourceRowIndex).delete(ExcelScript.DeleteShiftDirection.up);
-        console.log(`   🗑️  Deleted row ${sourceRowIndex + 2} from source.`);
+  if (rowsToProcess.length > 0) {
+    // Need to refresh range after potential modifications
+    const updatedSourceRange = sourceTable.getRangeBetweenHeaderAndTotal();
+    
+    for (const sourceRowIndex of rowsToProcess) {
+      if (sourceRowIndex < updatedSourceRange.getRowCount()) {
+        updatedSourceRange.getRow(sourceRowIndex).delete(ExcelScript.DeleteShiftDirection.up);
       }
     }
   }
-
+  
   // ====================
-  // 8. FINAL SUMMARY
+  // 9. FINAL SUMMARY
   // ====================
-  console.log("========================================");
+  console.log("=".repeat(50));
   console.log("🏁 SCRIPT EXECUTION COMPLETE");
-  console.log("========================================");
+  console.log("=".repeat(50));
   console.log(`Total Rows Processed: ${totalSourceRows}`);
   console.log(`Rows Moved to Bin: ${movedCount}`);
-  console.log(`Rows Remaining in Source: ${totalSourceRows - movedCount - skippedCount}`);
+  console.log(`Rows Skipped: ${skippedCount} (duplicate IDs or empty)`);
+  console.log(`CMDB Status Updates: ${updatedCount}`);
   console.log("");
-  console.log("📋 Next Steps:");
-  console.log("1. Check the 'Bin' sheet for moved rows.");
-  console.log("2. Review logs above for any warnings (⚠️).");
-  console.log("3. If you see an error, please share a screenshot of this log.");
-  console.log("========================================");
+  
+  if (ENABLE_LOGGING) {
+    console.log("📋 Detailed logs available in 'Script_Logs' sheet");
+    console.log("   To disable logging for production, comment out line 22:");
+    console.log("   // const ENABLE_LOGGING = true;");
+  }
+  
+  console.log("=".repeat(50));
 }
