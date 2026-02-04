@@ -2,189 +2,157 @@ function main(workbook: ExcelScript.Workbook) {
   console.log("🔍 DIAGNOSTIC SCRIPT - Checking Output Sheet");
   console.log("=============================================");
   
-  // ====================
-  // 1. CHECK OUTPUT SHEET
-  // ====================
   const OUTPUT_SHEET = "Output";
-  const OUTPUT_TABLE = "OuputTabel"; // With your spelling
+  const OUTPUT_TABLE = "OuputTabel";
   
-  console.log("\n📄 CHECKING OUTPUT SHEET:");
-  console.log("Looking for sheet named: '" + OUTPUT_SHEET + "'");
+  console.log("\n📄 STEP 1: CHECKING OUTPUT SHEET");
+  console.log("Looking for: '" + OUTPUT_SHEET + "'");
   
   const outputSheet = workbook.getWorksheet(OUTPUT_SHEET);
   
   if (!outputSheet) {
-    console.log("❌ PROBLEM: Output sheet NOT FOUND!");
-    console.log("Available sheets in your workbook:");
-    const allSheets = workbook.getWorksheets();
-    for (let i = 0; i < allSheets.length; i++) {
-      console.log("  - " + allSheets[i].getName());
-    }
-    return; // Stop here
-  }
-  
-  console.log("✅ Output sheet FOUND!");
-  
-  // ====================
-  // 2. CHECK OUTPUT TABLE
-  // ====================
-  console.log("\n📊 CHECKING OUTPUT TABLE:");
-  console.log("Looking for table named: '" + OUTPUT_TABLE + "'");
-  
-  let outputTable: ExcelScript.Table;
-  try {
-    outputTable = outputSheet.getTable(OUTPUT_TABLE);
-    console.log("✅ Output table FOUND!");
-  } catch (e) {
-    console.log("❌ PROBLEM: Output table NOT FOUND!");
-    console.log("Available tables in Output sheet:");
-    
-    try {
-      const allTables = outputSheet.getTables();
-      for (let i = 0; i < allTables.length; i++) {
-        console.log("  - " + allTables[i].getName());
-      }
-    } catch (err) {
-      console.log("  No tables found in Output sheet");
-    }
-    return; // Stop here
-  }
-  
-  // ====================
-  // 3. CHECK COLUMNS
-  // ====================
-  console.log("\n🏷️ CHECKING COLUMNS IN OUTPUT TABLE:");
-  
-  const outputHeaders = outputTable.getHeaderRowRange().getValues()[0] as string[];
-  console.log("Total columns: " + outputHeaders.length);
-  console.log("Column names:");
-  
-  for (let i = 0; i < outputHeaders.length; i++) {
-    console.log("  " + (i + 1) + ". '" + outputHeaders[i] + "'");
-  }
-  
-  // Look for specific columns
-  const idColIndex = outputHeaders.indexOf("Id");
-  const cmdbColIndex = outputHeaders.indexOf("CMDB Status");
-  
-  console.log("\n🔎 LOOKING FOR IMPORTANT COLUMNS:");
-  console.log("'Id' column: " + (idColIndex !== -1 ? "FOUND at position " + (idColIndex + 1) : "NOT FOUND"));
-  console.log("'CMDB Status' column: " + (cmdbColIndex !== -1 ? "FOUND at position " + (cmdbColIndex + 1) : "NOT FOUND"));
-  
-  // ====================
-  // 4. CHECK SAMPLE DATA
-  // ====================
-  console.log("\n📈 CHECKING SAMPLE DATA:");
-  
-  const outputRange = outputTable.getRangeBetweenHeaderAndTotal();
-  const outputData = outputRange.getValues() as (string | number | boolean)[][];
-  const rowCount = outputData.length;
-  
-  console.log("Total rows in Output table: " + rowCount);
-  
-  if (rowCount === 0) {
-    console.log("ℹ️ Output table is EMPTY (no data rows)");
+    console.log("❌ SHEET NOT FOUND!");
+    console.log("\nAvailable sheets:");
+    workbook.getWorksheets().forEach(sheet => {
+      console.log("  - " + sheet.getName());
+    });
     return;
   }
   
-  // Show first 3 rows as samples
-  console.log("\nSAMPLE ROWS (first 3):");
-  for (let i = 0; i < Math.min(3, rowCount); i++) {
-    const row = outputData[i];
-    console.log("\nRow " + (i + 1) + ":");
-    
-    if (idColIndex !== -1) {
-      console.log("  ID: '" + row[idColIndex] + "'");
-    }
-    
-    if (cmdbColIndex !== -1) {
-      console.log("  CMDB Status: '" + row[cmdbColIndex] + "'");
-    }
-    
-    // Show other columns too
-    console.log("  Full row data: " + JSON.stringify(row));
-  }
+  console.log("✅ Sheet FOUND!");
   
-  // ====================
-  // 5. CHECK BIN SHEET (for comparison)
-  // ====================
-  console.log("\n🗑️ CHECKING BIN SHEET (for comparison):");
+  console.log("\n📊 STEP 2: CHECKING OUTPUT TABLE");
+  console.log("Looking for table: '" + OUTPUT_TABLE + "'");
+  
+  let outputTable: ExcelScript.Table | null = null;
   
   try {
-    const binSheet = workbook.getWorksheet("Bin");
-    if (binSheet) {
-      const binTable = binSheet.getTable("Bin.Table");
-      if (binTable) {
-        const binHeaders = binTable.getHeaderRowRange().getValues()[0] as string[];
-        const binIdColIndex = binHeaders.indexOf("Id");
-        const binCmdbColIndex = binHeaders.indexOf("CMDB Status");
-        
-        const binRange = binTable.getRangeBetweenHeaderAndTotal();
-        const binData = binRange.getValues() as (string | number | boolean)[][];
-        const binRowCount = binData.length;
-        
-        console.log("Bin rows: " + binRowCount);
-        
-        // Show IDs in Bin that should be in Output
-        console.log("\nIDs currently in Bin sheet:");
-        if (binIdColIndex !== -1 && binRowCount > 0) {
-          for (let i = 0; i < Math.min(5, binRowCount); i++) {
-            const id = binData[i][binIdColIndex];
-            const cmdb = binCmdbColIndex !== -1 ? binData[i][binCmdbColIndex] : "N/A";
-            console.log("  ID: '" + id + "' | CMDB: '" + cmdb + "'");
-          }
-          if (binRowCount > 5) {
-            console.log("  ... and " + (binRowCount - 5) + " more");
-          }
-        }
-      }
-    }
+    // Try to get the table
+    outputTable = outputSheet.getTable(OUTPUT_TABLE);
+    console.log("✅ Table OBJECT FOUND!");
   } catch (e) {
-    console.log("ℹ️ Could not check Bin sheet");
+    console.log("❌ Cannot get table '" + OUTPUT_TABLE + "'");
+    console.log("Error: " + e);
+    
+    // Check what tables ARE in the sheet
+    console.log("\nChecking all tables in Output sheet:");
+    try {
+      const allTables = outputSheet.getTables();
+      if (allTables.length === 0) {
+        console.log("  No tables found in Output sheet");
+      } else {
+        allTables.forEach(table => {
+          console.log("  - Table name: '" + table.getName() + "'");
+        });
+      }
+    } catch (err) {
+      console.log("  Cannot read tables from sheet");
+    }
+    return;
   }
   
-  // ====================
-  // 6. CHECK SPECIFIC IDs
-  // ====================
-  console.log("\n🔬 CHECKING IF SPECIFIC IDs EXIST IN OUTPUT:");
+  console.log("\n🏷️ STEP 3: CHECKING TABLE STRUCTURE");
   
-  if (idColIndex !== -1 && rowCount > 0) {
-    // Let's check a few IDs
-    const testIds = [];
+  // SAFER WAY TO CHECK HEADERS
+  try {
+    console.log("Attempting to read table headers...");
     
-    // Add first ID from output
-    testIds.push(String(outputData[0][idColIndex]));
-    
-    // Add a few more if available
-    if (rowCount > 1) testIds.push(String(outputData[1][idColIndex]));
-    if (rowCount > 2) testIds.push(String(outputData[2][idColIndex]));
-    
-    console.log("Checking these IDs in Output table:");
-    
-    for (const testId of testIds) {
-      let found = false;
-      let foundRow = -1;
-      
-      for (let j = 0; j < rowCount; j++) {
-        const outputId = outputData[j][idColIndex];
-        if (outputId != null && String(outputId).trim() === testId.trim()) {
-          found = true;
-          foundRow = j + 1;
-          break;
-        }
-      }
-      
-      console.log("  ID '" + testId + "': " + (found ? "✅ FOUND at row " + foundRow : "❌ NOT FOUND"));
+    // First check if table has any range at all
+    let hasData = false;
+    try {
+      const usedRange = outputTable.getRange();
+      const rowCount = usedRange.getRowCount();
+      const columnCount = usedRange.getColumnCount();
+      console.log("Table range: " + rowCount + " rows x " + columnCount + " columns");
+      hasData = (rowCount > 0 && columnCount > 0);
+    } catch (rangeErr) {
+      console.log("Cannot get table range");
     }
+    
+    // Now try to get headers
+    const headerRange = outputTable.getHeaderRowRange();
+    if (headerRange) {
+      const headers = headerRange.getValues();
+      if (headers && headers.length > 0 && headers[0].length > 0) {
+        console.log("✅ Headers found! Column names:");
+        const headerRow = headers[0] as string[];
+        headerRow.forEach((header, index) => {
+          console.log("  Column " + (index + 1) + ": '" + header + "'");
+        });
+        
+        // Check for our important columns
+        const idIndex = headerRow.indexOf("Id");
+        const cmdbIndex = headerRow.indexOf("CMDB Status");
+        
+        console.log("\n🔎 IMPORTANT COLUMNS:");
+        console.log("'Id' column: " + (idIndex >= 0 ? "✅ FOUND at column " + (idIndex + 1) : "❌ NOT FOUND"));
+        console.log("'CMDB Status' column: " + (cmdbIndex >= 0 ? "✅ FOUND at column " + (cmdbIndex + 1) : "❌ NOT FOUND"));
+        
+        if (idIndex === -1) {
+          console.log("\n💡 SUGGESTION: Your 'Id' column might be named differently.");
+          console.log("Common variations: 'ID', 'id', 'Item ID', 'Record ID'");
+          console.log("Check your actual column names above.");
+        }
+        
+      } else {
+        console.log("⚠️ Header range exists but no header values found");
+      }
+    } else {
+      console.log("❌ No header range in table (table might be empty)");
+    }
+    
+  } catch (headerErr) {
+    console.log("❌ ERROR reading headers: " + headerErr);
+    console.log("This means your 'OuputTabel' exists but has NO HEADERS or is EMPTY.");
+  }
+  
+  console.log("\n📈 STEP 4: CHECKING FOR DATA ROWS");
+  try {
+    // Check if table has data between header and total
+    const dataRange = outputTable.getRangeBetweenHeaderAndTotal();
+    if (dataRange) {
+      const rowCount = dataRange.getRowCount();
+      const colCount = dataRange.getColumnCount();
+      console.log("Data area: " + rowCount + " rows x " + colCount + " columns");
+      
+      if (rowCount > 0) {
+        console.log("✅ Table has " + rowCount + " data rows");
+        // Show first few rows if available
+        if (rowCount > 0 && colCount > 0) {
+          console.log("\nFirst row sample (first 3 columns):");
+          const firstRow = dataRange.getRow(0);
+          const firstRowValues = firstRow.getValues()[0];
+          for (let i = 0; i < Math.min(3, firstRowValues.length); i++) {
+            console.log("  Column " + (i + 1) + ": '" + firstRowValues[i] + "'");
+          }
+        }
+      } else {
+        console.log("ℹ️ Table has NO DATA ROWS (only headers)");
+      }
+    }
+  } catch (dataErr) {
+    console.log("Cannot read data area: " + dataErr);
   }
   
   console.log("\n=============================================");
-  console.log("🔍 DIAGNOSTIC COMPLETE");
+  console.log("🔍 KEY FINDINGS:");
   console.log("=============================================");
-  console.log("\n📋 PLEASE SHARE THIS FULL OUTPUT WITH ME.");
-  console.log("It will show me exactly what's wrong!");
+  
+  if (!outputTable) {
+    console.log("1. ❌ Table not accessible - check table name");
+  } else {
+    console.log("1. ✅ Table object found");
+    console.log("2. ℹ️ Need to verify headers exist");
+  }
+  
+  console.log("\n📝 PLEASE SHARE:");
+  console.log("1. This FULL output");
+  console.log("2. Take a screenshot of your Output sheet");
+  console.log("3. Is the 'OuputTabel' EMPTY or just created?");
+  
+  console.log("\n💡 QUICK FIX TO TEST:");
+  console.log("If table is empty, add at least one row with 'Id' and 'CMDB Status' columns.");
 }
-
 
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
