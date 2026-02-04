@@ -12,7 +12,7 @@ function main(workbook: ExcelScript.Workbook) {
   // CMDB Status values that trigger move to bin (Rule 3)
   const STATUS_VALUES_TO_BIN = ["application team rejected", "cancelled", "unauthorized submission"];
   
-  // STATUS FIX 1: Added "cancelled" to preserve list
+  // Status values that should NOT be changed to "bin-duplicate"
   const PRESERVE_STATUSES = ["application team rejected", "unauthorized submission", "cancelled"];
   
   // LOGGING CONTROL - COMMENT THIS LINE FOR PRODUCTION/POWER AUTOMATE
@@ -78,7 +78,9 @@ function main(workbook: ExcelScript.Workbook) {
     return;
   }
   
-  // Get source data
+  // ====================
+  // 4. FIND COLUMN INDICES (CRITICAL FIX #1)
+  // ====================
   const sourceHeaders = sourceTable.getHeaderRowRange().getValues()[0] as string[];
   const sourceRange = sourceTable.getRangeBetweenHeaderAndTotal();
   const sourceData = sourceRange.getValues() as (string | number | boolean)[][];
@@ -86,22 +88,28 @@ function main(workbook: ExcelScript.Workbook) {
   
   console.log(`📊 Processing ${totalSourceRows} rows from source`);
   
-  // ====================
-  // 4. FIND COLUMN INDICES
-  // ====================
+  // Find all required column indices
   const idColIndex = sourceHeaders.indexOf("Id");
   const ritmColIndex = sourceHeaders.findIndex(h => /^RITM/i.test(h));
   const cmdbStatusColIndex = sourceHeaders.indexOf("CMDB Status");
   
+  // Validate critical columns
   if (idColIndex === -1) {
     console.log("❌ 'Id' column not found in source table");
     return;
   }
   
-  // Prepare output sheet if needed for updates
+  // Log column findings
+  if (ritmColIndex === -1) console.log("⚠️ No RITM column found - Rules 1 & 2 will be skipped");
+  if (cmdbStatusColIndex === -1) console.log("⚠️ No CMDB Status column found - Rule 3 will be skipped");
+  
+  // ====================
+  // 5. PREPARE OUTPUT SHEET (CRITICAL FIX #2)
+  // ====================
   let outputTable: ExcelScript.Table | undefined;
   let outputIdColIndex = -1;
   let outputCmdbColIndex = -1;
+  let outputIdToRowMap: Map<string, number> | null = null; // For fast ID lookup
   
   if (outputSheet) {
     try {
@@ -110,14 +118,34 @@ function main(workbook: ExcelScript.Workbook) {
         const outputHeaders = outputTable.getHeaderRowRange().getValues()[0] as string[];
         outputIdColIndex = outputHeaders.indexOf("Id");
         outputCmdbColIndex = outputHeaders.indexOf("CMDB Status");
+        
+        // Build ID-to-row map for fast lookups (CRITICAL FIX)
+        if (outputIdColIndex !== -1) {
+          const outputRange = outputTable.getRangeBetweenHeaderAndTotal();
+          const outputData = outputRange.getValues() as (string | number | boolean)[][];
+          outputIdToRowMap = new Map();
+          
+          for (let j = 0; j < outputData.length; j++) {
+            const outputId = outputData[j][outputIdColIndex];
+            if (outputId != null) {
+              const idStr = String(outputId).trim();
+              if (idStr !== "") {
+                outputIdToRowMap.set(idStr, j);
+              }
+            }
+          }
+          console.log(`📋 Output sheet: Loaded ${outputIdToRowMap.size} IDs for fast lookup`);
+        }
       }
     } catch (e) {
-      console.log("⚠️ Output table not found or accessible. CMDB updates will only affect source sheet.");
+      console.log("⚠️ Output table not accessible. Will only update source sheet.");
     }
+  } else {
+    console.log("ℹ️ Output sheet not found. Will only update source sheet.");
   }
   
   // ====================
-  // 5. EXISTING BIN IDs (Avoid Duplicates)
+  // 6. EXISTING BIN IDs (Avoid Duplicates)
   // ====================
   const binRange = binTable.getRangeBetweenHeaderAndTotal();
   const binData = binRange.getValues() as (string | number | boolean)[][];
@@ -135,7 +163,7 @@ function main(workbook: ExcelScript.Workbook) {
   }
   
   // ====================
-  // 6. IDENTIFY ROWS TO MOVE (Three Rules)
+  // 7. IDENTIFY ROWS TO MOVE (Three Rules)
   // ====================
   const rowsMarkedForBin = new Set<number>();
   const rowReasons: { [key: number]: string } = {};
@@ -160,6 +188,7 @@ function main(workbook: ExcelScript.Workbook) {
       }
     }
     
+    // Process duplicate groups
     for (const ritmKey in ritmGroups) {
       const entries = ritmGroups[ritmKey];
       if (entries.length > 1) {
@@ -170,7 +199,8 @@ function main(workbook: ExcelScript.Workbook) {
           if (entry.rowIndex !== keeper.rowIndex) {
             rowsMarkedForBin.add(entry.rowIndex);
             rowReasons[entry.rowIndex] = `Duplicate RITM '${ritmKey}'`;
-            addLog(String(entry.id), ritmKey, "MARK_DUPLICATE", `Older duplicate of ID ${keeper.id}`);
+            const idValue = sourceData[entry.rowIndex][idColIndex];
+            addLog(String(idValue), ritmKey, "MARK_DUPLICATE", `Older duplicate of ID ${keeper.id}`);
           }
         }
       }
@@ -214,81 +244,102 @@ function main(workbook: ExcelScript.Workbook) {
   console.log(`✅ Analysis complete: ${rowsMarkedForBin.size} rows to process`);
   
   // ====================
-  // 7. UPDATE CMDB STATUS & MOVE TO BIN
+  // 8. UPDATE CMDB STATUS & MOVE TO BIN (CRITICAL FIX #3-7)
   // ====================
-  const rowsToProcess = Array.from(rowsMarkedForBin).sort((a, b) => b - a); // Descending for safe deletion
+  const rowsToProcess = Array.from(rowsMarkedForBin).sort((a, b) => b - a);
   let movedCount = 0;
   let skippedCount = 0;
-  let updatedCount = 0;
+  let sourceUpdatedCount = 0;
+  let outputUpdatedCount = 0;
+  
+  // Track which rows we've updated for final deletion
+  const rowsToDelete: number[] = [];
   
   for (const sourceRowIndex of rowsToProcess) {
     const sourceRow = sourceData[sourceRowIndex];
     const rowId = sourceRow[idColIndex];
     const rowIdStr = rowId != null ? String(rowId).trim() : "";
+    const ritmValue = ritmColIndex !== -1 ? sourceRow[ritmColIndex] : "";
+    const ritmStr = ritmValue != null ? String(ritmValue).trim() : "";
     
     // Skip if no ID or already in bin
-    if (rowIdStr === "" || existingBinIds.has(rowIdStr)) {
+    if (rowIdStr === "") {
+      addLog("", ritmStr, "SKIP_NO_ID", "Row has no ID - skipping");
       skippedCount++;
       continue;
     }
     
-    const ritmValue = ritmColIndex !== -1 ? sourceRow[ritmColIndex] : "";
-    const ritmStr = ritmValue != null ? String(ritmValue).trim() : "";
+    if (existingBinIds.has(rowIdStr)) {
+      addLog(rowIdStr, ritmStr, "SKIP_DUPLICATE_ID", "ID already exists in bin");
+      skippedCount++;
+      continue;
+    }
     
-    // STEP 1: Update CMDB Status if needed
+    // Determine what the new status should be
+    let newStatus: string = "";
+    let updateSource = false;
+    let updateOutput = false;
+    
     if (cmdbStatusColIndex !== -1) {
       const currentStatus = sourceRow[cmdbStatusColIndex];
       const statusStr = currentStatus != null ? String(currentStatus).trim() : "";
       
-      // Check if we should update to "bin-duplicate"
-      const shouldUpdate = statusStr !== "" && 
-                          !PRESERVE_STATUSES.some(preserve => 
-                            statusStr.toLowerCase() === preserve.toLowerCase());
+      // CRITICAL FIX #3: Empty cells should be updated to "bin-duplicate"
+      const shouldUpdate = !PRESERVE_STATUSES.some(preserve => 
+        statusStr.toLowerCase() === preserve.toLowerCase());
       
       if (shouldUpdate) {
-        // Update source sheet
-        const sourceStatusCell = sourceRange.getCell(sourceRowIndex, cmdbStatusColIndex);
-        sourceStatusCell.setValue("bin-duplicate");
-        
-        // CRITICAL FIX 2: Update the sourceData array too!
-        sourceData[sourceRowIndex][cmdbStatusColIndex] = "bin-duplicate";
-        
-        // Update output sheet if available
-        if (outputTable && outputIdColIndex !== -1 && outputCmdbColIndex !== -1) {
-          const outputRange = outputTable.getRangeBetweenHeaderAndTotal();
-          const outputData = outputRange.getValues() as (string | number | boolean)[][];
-          
-          for (let j = 0; j < outputData.length; j++) {
-            const outputId = outputData[j][outputIdColIndex];
-            if (outputId != null && String(outputId).trim() === rowIdStr) {
-              const outputStatusCell = outputRange.getCell(j, outputCmdbColIndex);
-              outputStatusCell.setValue("bin-duplicate");
-              updatedCount++;
-              addLog(rowIdStr, ritmStr, "UPDATE_STATUS", `Updated both sheets to 'bin-duplicate'`);
-              break;
-            }
-          }
-        } else {
-          addLog(rowIdStr, ritmStr, "UPDATE_STATUS", `Updated source sheet to 'bin-duplicate'`);
-        }
+        newStatus = "bin-duplicate";
+        updateSource = true;
+        updateOutput = true;
       } else {
-        // If status is "cancelled", "application team rejected", or "unauthorized submission"
-        addLog(rowIdStr, ritmStr, "PRESERVE_STATUS", `Keeping original status: '${statusStr}'`);
+        newStatus = statusStr; // Keep original preserved status
+        // Still update output sheet to sync the preserved status
+        updateOutput = (outputIdToRowMap?.has(rowIdStr) ?? false);
       }
     }
     
-    // STEP 2: Move to Bin table (NOW with updated data)
+    // STEP 1: Update Source Sheet (if needed)
+    if (updateSource && cmdbStatusColIndex !== -1) {
+      const sourceStatusCell = sourceRange.getCell(sourceRowIndex, cmdbStatusColIndex);
+      sourceStatusCell.setValue(newStatus);
+      
+      // CRITICAL FIX #4: Update the in-memory array too
+      sourceRow[cmdbStatusColIndex] = newStatus;
+      
+      sourceUpdatedCount++;
+      addLog(rowIdStr, ritmStr, "UPDATE_SOURCE", `Set status to '${newStatus}'`);
+    }
+    
+    // STEP 2: Update Output Sheet (if needed and exists)
+    if (updateOutput && outputTable && outputIdToRowMap && outputCmdbColIndex !== -1) {
+      const outputRowIndex = outputIdToRowMap.get(rowIdStr);
+      
+      if (outputRowIndex !== undefined) {
+        const outputRange = outputTable.getRangeBetweenHeaderAndTotal();
+        const outputStatusCell = outputRange.getCell(outputRowIndex, outputCmdbColIndex);
+        outputStatusCell.setValue(newStatus);
+        
+        outputUpdatedCount++;
+        addLog(rowIdStr, ritmStr, "UPDATE_OUTPUT", `Set status to '${newStatus}'`);
+      } else {
+        addLog(rowIdStr, ritmStr, "OUTPUT_NOT_FOUND", "ID not found in output sheet");
+      }
+    }
+    
+    // STEP 3: Move to Bin table (with updated data)
     const newBinRow: (string | number | boolean)[] = [];
     for (const binHeader of binHeaders) {
       const sourceColIndex = sourceHeaders.indexOf(binHeader);
-      newBinRow.push(sourceColIndex !== -1 ? sourceData[sourceRowIndex][sourceColIndex] : "");
+      newBinRow.push(sourceColIndex !== -1 ? sourceRow[sourceColIndex] : "");
     }
     
     binTable.addRow(-1, newBinRow);
     existingBinIds.add(rowIdStr);
     movedCount++;
+    rowsToDelete.push(sourceRowIndex);
     
-    // STEP 3: Apply strikethrough in Bin
+    // STEP 4: Apply strikethrough in Bin
     try {
       const newBinRange = binTable.getRangeBetweenHeaderAndTotal();
       const lastRowIndex = newBinRange.getRowCount() - 1;
@@ -304,21 +355,27 @@ function main(workbook: ExcelScript.Workbook) {
   }
   
   // ====================
-  // 8. DELETE FROM SOURCE
+  // 9. DELETE FROM SOURCE (CRITICAL FIX #5)
   // ====================
-  if (rowsToProcess.length > 0) {
-    // Need to refresh range after potential modifications
-    const updatedSourceRange = sourceTable.getRangeBetweenHeaderAndTotal();
+  if (rowsToDelete.length > 0) {
+    // Delete from bottom to top to maintain correct indices
+    rowsToDelete.sort((a, b) => b - a);
     
-    for (const sourceRowIndex of rowsToProcess) {
-      if (sourceRowIndex < updatedSourceRange.getRowCount()) {
+    // Refresh range after potential modifications
+    const updatedSourceRange = sourceTable.getRangeBetweenHeaderAndTotal();
+    const currentRowCount = updatedSourceRange.getRowCount();
+    
+    for (const sourceRowIndex of rowsToDelete) {
+      if (sourceRowIndex < currentRowCount) {
         updatedSourceRange.getRow(sourceRowIndex).delete(ExcelScript.DeleteShiftDirection.up);
       }
     }
+    
+    console.log(`🗑️  Deleted ${Math.min(rowsToDelete.length, currentRowCount)} rows from source`);
   }
   
   // ====================
-  // 9. FINAL SUMMARY
+  // 10. FINAL SUMMARY
   // ====================
   console.log("=".repeat(50));
   console.log("🏁 SCRIPT EXECUTION COMPLETE");
@@ -326,7 +383,8 @@ function main(workbook: ExcelScript.Workbook) {
   console.log(`Total Rows Processed: ${totalSourceRows}`);
   console.log(`Rows Moved to Bin: ${movedCount}`);
   console.log(`Rows Skipped: ${skippedCount} (duplicate IDs or empty)`);
-  console.log(`CMDB Status Updates: ${updatedCount}`);
+  console.log(`Source Sheet Updates: ${sourceUpdatedCount}`);
+  console.log(`Output Sheet Updates: ${outputUpdatedCount}`);
   console.log("");
   
   if (ENABLE_LOGGING) {
