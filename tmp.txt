@@ -1,4 +1,195 @@
 function main(workbook: ExcelScript.Workbook) {
+  console.log("🔍 DIAGNOSTIC SCRIPT - Checking Output Sheet");
+  console.log("=============================================");
+  
+  // ====================
+  // 1. CHECK OUTPUT SHEET
+  // ====================
+  const OUTPUT_SHEET = "Output";
+  const OUTPUT_TABLE = "OuputTabel"; // With your spelling
+  
+  console.log("\n📄 CHECKING OUTPUT SHEET:");
+  console.log("Looking for sheet named: '" + OUTPUT_SHEET + "'");
+  
+  const outputSheet = workbook.getWorksheet(OUTPUT_SHEET);
+  
+  if (!outputSheet) {
+    console.log("❌ PROBLEM: Output sheet NOT FOUND!");
+    console.log("Available sheets in your workbook:");
+    const allSheets = workbook.getWorksheets();
+    for (let i = 0; i < allSheets.length; i++) {
+      console.log("  - " + allSheets[i].getName());
+    }
+    return; // Stop here
+  }
+  
+  console.log("✅ Output sheet FOUND!");
+  
+  // ====================
+  // 2. CHECK OUTPUT TABLE
+  // ====================
+  console.log("\n📊 CHECKING OUTPUT TABLE:");
+  console.log("Looking for table named: '" + OUTPUT_TABLE + "'");
+  
+  let outputTable: ExcelScript.Table;
+  try {
+    outputTable = outputSheet.getTable(OUTPUT_TABLE);
+    console.log("✅ Output table FOUND!");
+  } catch (e) {
+    console.log("❌ PROBLEM: Output table NOT FOUND!");
+    console.log("Available tables in Output sheet:");
+    
+    try {
+      const allTables = outputSheet.getTables();
+      for (let i = 0; i < allTables.length; i++) {
+        console.log("  - " + allTables[i].getName());
+      }
+    } catch (err) {
+      console.log("  No tables found in Output sheet");
+    }
+    return; // Stop here
+  }
+  
+  // ====================
+  // 3. CHECK COLUMNS
+  // ====================
+  console.log("\n🏷️ CHECKING COLUMNS IN OUTPUT TABLE:");
+  
+  const outputHeaders = outputTable.getHeaderRowRange().getValues()[0] as string[];
+  console.log("Total columns: " + outputHeaders.length);
+  console.log("Column names:");
+  
+  for (let i = 0; i < outputHeaders.length; i++) {
+    console.log("  " + (i + 1) + ". '" + outputHeaders[i] + "'");
+  }
+  
+  // Look for specific columns
+  const idColIndex = outputHeaders.indexOf("Id");
+  const cmdbColIndex = outputHeaders.indexOf("CMDB Status");
+  
+  console.log("\n🔎 LOOKING FOR IMPORTANT COLUMNS:");
+  console.log("'Id' column: " + (idColIndex !== -1 ? "FOUND at position " + (idColIndex + 1) : "NOT FOUND"));
+  console.log("'CMDB Status' column: " + (cmdbColIndex !== -1 ? "FOUND at position " + (cmdbColIndex + 1) : "NOT FOUND"));
+  
+  // ====================
+  // 4. CHECK SAMPLE DATA
+  // ====================
+  console.log("\n📈 CHECKING SAMPLE DATA:");
+  
+  const outputRange = outputTable.getRangeBetweenHeaderAndTotal();
+  const outputData = outputRange.getValues() as (string | number | boolean)[][];
+  const rowCount = outputData.length;
+  
+  console.log("Total rows in Output table: " + rowCount);
+  
+  if (rowCount === 0) {
+    console.log("ℹ️ Output table is EMPTY (no data rows)");
+    return;
+  }
+  
+  // Show first 3 rows as samples
+  console.log("\nSAMPLE ROWS (first 3):");
+  for (let i = 0; i < Math.min(3, rowCount); i++) {
+    const row = outputData[i];
+    console.log("\nRow " + (i + 1) + ":");
+    
+    if (idColIndex !== -1) {
+      console.log("  ID: '" + row[idColIndex] + "'");
+    }
+    
+    if (cmdbColIndex !== -1) {
+      console.log("  CMDB Status: '" + row[cmdbColIndex] + "'");
+    }
+    
+    // Show other columns too
+    console.log("  Full row data: " + JSON.stringify(row));
+  }
+  
+  // ====================
+  // 5. CHECK BIN SHEET (for comparison)
+  // ====================
+  console.log("\n🗑️ CHECKING BIN SHEET (for comparison):");
+  
+  try {
+    const binSheet = workbook.getWorksheet("Bin");
+    if (binSheet) {
+      const binTable = binSheet.getTable("Bin.Table");
+      if (binTable) {
+        const binHeaders = binTable.getHeaderRowRange().getValues()[0] as string[];
+        const binIdColIndex = binHeaders.indexOf("Id");
+        const binCmdbColIndex = binHeaders.indexOf("CMDB Status");
+        
+        const binRange = binTable.getRangeBetweenHeaderAndTotal();
+        const binData = binRange.getValues() as (string | number | boolean)[][];
+        const binRowCount = binData.length;
+        
+        console.log("Bin rows: " + binRowCount);
+        
+        // Show IDs in Bin that should be in Output
+        console.log("\nIDs currently in Bin sheet:");
+        if (binIdColIndex !== -1 && binRowCount > 0) {
+          for (let i = 0; i < Math.min(5, binRowCount); i++) {
+            const id = binData[i][binIdColIndex];
+            const cmdb = binCmdbColIndex !== -1 ? binData[i][binCmdbColIndex] : "N/A";
+            console.log("  ID: '" + id + "' | CMDB: '" + cmdb + "'");
+          }
+          if (binRowCount > 5) {
+            console.log("  ... and " + (binRowCount - 5) + " more");
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.log("ℹ️ Could not check Bin sheet");
+  }
+  
+  // ====================
+  // 6. CHECK SPECIFIC IDs
+  // ====================
+  console.log("\n🔬 CHECKING IF SPECIFIC IDs EXIST IN OUTPUT:");
+  
+  if (idColIndex !== -1 && rowCount > 0) {
+    // Let's check a few IDs
+    const testIds = [];
+    
+    // Add first ID from output
+    testIds.push(String(outputData[0][idColIndex]));
+    
+    // Add a few more if available
+    if (rowCount > 1) testIds.push(String(outputData[1][idColIndex]));
+    if (rowCount > 2) testIds.push(String(outputData[2][idColIndex]));
+    
+    console.log("Checking these IDs in Output table:");
+    
+    for (const testId of testIds) {
+      let found = false;
+      let foundRow = -1;
+      
+      for (let j = 0; j < rowCount; j++) {
+        const outputId = outputData[j][idColIndex];
+        if (outputId != null && String(outputId).trim() === testId.trim()) {
+          found = true;
+          foundRow = j + 1;
+          break;
+        }
+      }
+      
+      console.log("  ID '" + testId + "': " + (found ? "✅ FOUND at row " + foundRow : "❌ NOT FOUND"));
+    }
+  }
+  
+  console.log("\n=============================================");
+  console.log("🔍 DIAGNOSTIC COMPLETE");
+  console.log("=============================================");
+  console.log("\n📋 PLEASE SHARE THIS FULL OUTPUT WITH ME.");
+  console.log("It will show me exactly what's wrong!");
+}
+
+
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+
+function main(workbook: ExcelScript.Workbook) {
   // ====================
   // 1. CONFIGURATION & TOGGLES
   // ====================
