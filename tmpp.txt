@@ -30,12 +30,10 @@ function main(workbook: ExcelScript.Workbook): string {
   const tables: ExcelScript.Table[] = sourceSheet.getTables();
   
   if (tables.length === 0) {
-    console.log("❌ No table found on the active worksheet");
-    return JSON.stringify({ error: "No table found on active worksheet" });
+    return JSON.stringify({ error: "No table found on active worksheet" }, null, 2);
   }
   
   const sourceTable: ExcelScript.Table = tables[0];
-  console.log(`📊 Processing table: ${sourceTable.getName()}`);
   
   // ====================
   // 2. FIND COLUMN INDICES
@@ -45,8 +43,6 @@ function main(workbook: ExcelScript.Workbook): string {
   const sourceData: (string | number | boolean)[][] = sourceRange.getValues() as (string | number | boolean)[][];
   const totalSourceRows: number = sourceData.length;
   
-  console.log(`📊 Processing ${totalSourceRows} rows from source table`);
-  
   // Find all required column indices
   const idColIndex: number = sourceHeaders.indexOf("Id");
   const ritmColIndex: number = sourceHeaders.findIndex(h => /^RITM/i.test(h));
@@ -54,20 +50,12 @@ function main(workbook: ExcelScript.Workbook): string {
   
   // Validate critical columns
   if (idColIndex === -1) {
-    console.log("❌ 'Id' column not found in source table");
-    return JSON.stringify({ error: "'Id' column not found in source table" });
+    return JSON.stringify({ error: "'Id' column not found in source table" }, null, 2);
   }
   
   if (ritmColIndex === -1) {
-    console.log("❌ No RITM column found");
-    return JSON.stringify({ error: "No RITM column found in source table" });
+    return JSON.stringify({ error: "No RITM column found in source table" }, null, 2);
   }
-  
-  if (cmdbStatusColIndex === -1) {
-    console.log("⚠️ No CMDB Status column found - will use empty values");
-  }
-  
-  console.log(`📍 Column indices - ID: ${idColIndex}, RITM: ${ritmColIndex}, CMDB Status: ${cmdbStatusColIndex}`);
   
   // ====================
   // 3. COLLECT DATA BY RITM NUMBER
@@ -87,7 +75,8 @@ function main(workbook: ExcelScript.Workbook): string {
     // Create entry object
     const entry: RitmEntry = {
       Id: (row[idColIndex] ? row[idColIndex].toString() : ""),
-      CMDB_Status: (cmdbStatusColIndex !== -1 && row[cmdbStatusColIndex]) ? row[cmdbStatusColIndex].toString() : "N/A"
+      CMDB_Status: (cmdbStatusColIndex !== -1 && row[cmdbStatusColIndex]) ? 
+                    row[cmdbStatusColIndex].toString() : "N/A"
     };
     
     // Group by RITM number
@@ -104,6 +93,7 @@ function main(workbook: ExcelScript.Workbook): string {
   const uniqueRitmDataMap: RitmData = {};
   
   const ritmNumbers: string[] = Object.keys(ritmDataMap);
+  
   ritmNumbers.forEach(ritmNumber => {
     const entries: RitmEntry[] = ritmDataMap[ritmNumber];
     
@@ -120,10 +110,6 @@ function main(workbook: ExcelScript.Workbook): string {
     });
     
     uniqueRitmDataMap[ritmNumber] = uniqueEntries;
-    
-    if (entries.length !== uniqueEntries.length) {
-      console.log(`🔄 RITM ${ritmNumber}: Removed ${entries.length - uniqueEntries.length} duplicate entries`);
-    }
   });
   
   // ====================
@@ -138,40 +124,7 @@ function main(workbook: ExcelScript.Workbook): string {
   };
   
   // ====================
-  // 6. OUTPUT RESULTS
+  // 6. RETURN THE FULL JSON
   // ====================
-  const jsonOutput: string = JSON.stringify(result, null, 2);
-  console.log(`✅ Processing complete. Found ${Object.keys(uniqueRitmDataMap).length} unique RITM numbers.`);
-  console.log("📋 JSON output generated successfully.");
-  
-  // Also log a sample for verification
-  const sampleRitms: string[] = ritmNumbers.slice(0, 3);
-  sampleRitms.forEach(ritm => {
-    console.log(`   Sample - RITM ${ritm}: ${uniqueRitmDataMap[ritm].length} entries`);
-  });
-  
-  return jsonOutput;
-}
-
-// Optional: Helper function to process a specific RITM number
-/**
- * This function searches for a specific RITM number and returns matching entries.
- * Can be used if you want to query individual RITMs.
- */
-function findRitmEntries(workbook: ExcelScript.Workbook, ritmToFind: string): string {
-  const mainResult: string = main(workbook);
-  
-  try {
-    const parsedResult: ProcessingResult = JSON.parse(mainResult) as ProcessingResult;
-    
-    const specificResult = {
-      ritm_requested: ritmToFind,
-      found: ritmToFind in parsedResult.data,
-      entries: parsedResult.data[ritmToFind] || []
-    };
-    
-    return JSON.stringify(specificResult, null, 2);
-  } catch (error) {
-    return mainResult; // Return the original error if parsing fails
-  }
+  return JSON.stringify(result, null, 2);
 }
