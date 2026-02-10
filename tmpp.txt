@@ -1,0 +1,156 @@
+/**
+ * This Office Script processes a table containing RITM data.
+ * It finds all unique RITM numbers and returns a JSON structure
+ * containing ID and CMDB Status information for each occurrence.
+ */
+function main(workbook: ExcelScript.Workbook): string {
+  // ====================
+  // 1. GET SOURCE TABLE
+  // ====================
+  const sourceSheet = workbook.getActiveWorksheet();
+  const tables = sourceSheet.getTables();
+  
+  if (tables.length === 0) {
+    console.log("❌ No table found on the active worksheet");
+    return JSON.stringify({ error: "No table found on active worksheet" });
+  }
+  
+  const sourceTable = tables[0];
+  console.log(`📊 Processing table: ${sourceTable.getName()}`);
+  
+  // ====================
+  // 2. FIND COLUMN INDICES
+  // ====================
+  const sourceHeaders = sourceTable.getHeaderRowRange().getValues()[0] as string[];
+  const sourceRange = sourceTable.getRangeBetweenHeaderAndTotal();
+  const sourceData = sourceRange.getValues() as (string | number | boolean)[][];
+  const totalSourceRows = sourceData.length;
+  
+  console.log(`📊 Processing ${totalSourceRows} rows from source table`);
+  
+  // Find all required column indices
+  const idColIndex = sourceHeaders.indexOf("Id");
+  const ritmColIndex = sourceHeaders.findIndex(h => /^RITM/i.test(h));
+  const cmdbStatusColIndex = sourceHeaders.indexOf("CMDB Status");
+  
+  // Validate critical columns
+  if (idColIndex === -1) {
+    console.log("❌ 'Id' column not found in source table");
+    return JSON.stringify({ error: "'Id' column not found in source table" });
+  }
+  
+  if (ritmColIndex === -1) {
+    console.log("❌ No RITM column found");
+    return JSON.stringify({ error: "No RITM column found in source table" });
+  }
+  
+  if (cmdbStatusColIndex === -1) {
+    console.log("⚠️ No CMDB Status column found - will use empty values");
+  }
+  
+  console.log(`📍 Column indices - ID: ${idColIndex}, RITM: ${ritmColIndex}, CMDB Status: ${cmdbStatusColIndex}`);
+  
+  // ====================
+  // 3. COLLECT DATA BY RITM NUMBER
+  // ====================
+  const ritmDataMap: { [key: string]: any[] } = {};
+  
+  // Process each row
+  for (let i = 0; i < totalSourceRows; i++) {
+    const row = sourceData[i];
+    const ritmValue = row[ritmColIndex];
+    
+    // Skip rows without RITM value
+    if (!ritmValue) continue;
+    
+    const ritmString = ritmValue.toString().trim();
+    
+    // Create entry object
+    const entry = {
+      Id: row[idColIndex]?.toString() || "",
+      CMDB_Status: cmdbStatusColIndex !== -1 ? row[cmdbStatusColIndex]?.toString() || "" : "N/A"
+    };
+    
+    // Group by RITM number
+    if (!ritmDataMap[ritmString]) {
+      ritmDataMap[ritmString] = [];
+    }
+    
+    ritmDataMap[ritmString].push(entry);
+  }
+  
+  // ====================
+  // 4. REMOVE DUPLICATES WITHIN EACH RITM GROUP
+  // ====================
+  const uniqueRitmDataMap: { [key: string]: any[] } = {};
+  
+  Object.keys(ritmDataMap).forEach(ritmNumber => {
+    const entries = ritmDataMap[ritmNumber];
+    
+    // Use a Set to track unique ID-CMDB_Status combinations
+    const seen = new Set<string>();
+    const uniqueEntries: any[] = [];
+    
+    entries.forEach(entry => {
+      const key = `${entry.Id}|${entry.CMDB_Status}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        uniqueEntries.push(entry);
+      }
+    });
+    
+    uniqueRitmDataMap[ritmNumber] = uniqueEntries;
+    
+    if (entries.length !== uniqueEntries.length) {
+      console.log(`🔄 RITM ${ritmNumber}: Removed ${entries.length - uniqueEntries.length} duplicate entries`);
+    }
+  });
+  
+  // ====================
+  // 5. CREATE FINAL JSON STRUCTURE
+  // ====================
+  const result = {
+    summary: {
+      total_unique_ritms: Object.keys(uniqueRitmDataMap).length,
+      total_source_rows: totalSourceRows
+    },
+    data: uniqueRitmDataMap
+  };
+  
+  // ====================
+  // 6. OUTPUT RESULTS
+  // ====================
+  const jsonOutput = JSON.stringify(result, null, 2);
+  console.log(`✅ Processing complete. Found ${Object.keys(uniqueRitmDataMap).length} unique RITM numbers.`);
+  console.log("📋 JSON output generated successfully.");
+  
+  // Also log a sample for verification
+  const sampleRitms = Object.keys(uniqueRitmDataMap).slice(0, 3);
+  sampleRitms.forEach(ritm => {
+    console.log(`   Sample - RITM ${ritm}: ${uniqueRitmDataMap[ritm].length} entries`);
+  });
+  
+  return jsonOutput;
+}
+
+// Optional: Helper function to process a specific RITM number
+/**
+ * This function searches for a specific RITM number and returns matching entries.
+ * Can be used if you want to query individual RITMs.
+ */
+function findRitmEntries(workbook: ExcelScript.Workbook, ritmToFind: string): string {
+  const mainResult = main(workbook);
+  const parsedResult = JSON.parse(mainResult);
+  
+  if (parsedResult.error) {
+    return JSON.stringify(parsedResult);
+  }
+  
+  const specificResult = {
+    ritm_requested: ritmToFind,
+    found: ritmToFind in parsedResult.data,
+    entries: parsedResult.data[ritmToFind] || []
+  };
+  
+  return JSON.stringify(specificResult, null, 2);
+}
