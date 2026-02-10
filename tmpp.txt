@@ -1,7 +1,7 @@
 /**
  * This Office Script processes a table containing RITM data.
- * It finds all unique RITM numbers and returns a JSON structure
- * containing ID and CMDB Status information for each occurrence.
+ * It finds all unique RITM numbers and returns ALL occurrences
+ * of each RITM with their ID and CMDB Status information.
  */
 
 // Define interfaces for our data structures
@@ -18,6 +18,7 @@ interface ProcessingResult {
   summary: {
     total_unique_ritms: number;
     total_source_rows: number;
+    total_entries_found: number;
   };
   data: RitmData;
 }
@@ -58,73 +59,77 @@ function main(workbook: ExcelScript.Workbook): string {
   }
   
   // ====================
-  // 3. COLLECT DATA BY RITM NUMBER
+  // 3. EXTRACT ALL RITM VALUES (AS STRINGS)
   // ====================
-  const ritmDataMap: RitmData = {};
+  const allRitmStrings: string[] = [];
   
-  // Process each row
+  // First pass: Extract all RITM values as strings
   for (let i = 0; i < totalSourceRows; i++) {
-    const row: (string | number | boolean)[] = sourceData[i];
-    const ritmValue: string | number | boolean = row[ritmColIndex];
-    
-    // Skip rows without RITM value
-    if (!ritmValue) continue;
-    
-    const ritmString: string = ritmValue.toString().trim();
-    
-    // Create entry object
-    const entry: RitmEntry = {
-      Id: (row[idColIndex] ? row[idColIndex].toString() : ""),
-      CMDB_Status: (cmdbStatusColIndex !== -1 && row[cmdbStatusColIndex]) ? 
-                    row[cmdbStatusColIndex].toString() : "N/A"
-    };
-    
-    // Group by RITM number
-    if (!ritmDataMap[ritmString]) {
-      ritmDataMap[ritmString] = [];
+    const ritmValue = sourceData[i][ritmColIndex];
+    if (ritmValue) {
+      allRitmStrings.push(ritmValue.toString().trim());
     }
-    
-    ritmDataMap[ritmString].push(entry);
   }
   
   // ====================
-  // 4. REMOVE DUPLICATES WITHIN EACH RITM GROUP
+  // 4. REMOVE DUPLICATE RITM STRINGS ONLY
   // ====================
-  const uniqueRitmDataMap: RitmData = {};
+  const uniqueRitmStrings: string[] = [];
+  const seenRitms = new Set<string>();
   
-  const ritmNumbers: string[] = Object.keys(ritmDataMap);
+  for (const ritmString of allRitmStrings) {
+    if (!seenRitms.has(ritmString)) {
+      seenRitms.add(ritmString);
+      uniqueRitmStrings.push(ritmString);
+    }
+  }
   
-  ritmNumbers.forEach(ritmNumber => {
-    const entries: RitmEntry[] = ritmDataMap[ritmNumber];
+  // ====================
+  // 5. FOR EACH UNIQUE RITM, FIND ALL MATCHING ROWS
+  // ====================
+  const ritmDataMap: RitmData = {};
+  let totalEntriesFound = 0;
+  
+  // For each unique RITM string
+  for (const ritmString of uniqueRitmStrings) {
+    const entries: RitmEntry[] = [];
     
-    // Use a Set to track unique ID-CMDB_Status combinations
-    const seen: Set<string> = new Set<string>();
-    const uniqueEntries: RitmEntry[] = [];
-    
-    entries.forEach(entry => {
-      const key: string = `${entry.Id}|${entry.CMDB_Status}`;
-      if (!seen.has(key)) {
-        seen.add(key);
-        uniqueEntries.push(entry);
+    // Search through ALL rows for this RITM
+    for (let i = 0; i < totalSourceRows; i++) {
+      const row = sourceData[i];
+      const currentRitmValue = row[ritmColIndex];
+      
+      // Check if this row's RITM matches our current RITM
+      if (currentRitmValue && currentRitmValue.toString().trim() === ritmString) {
+        // Create entry object
+        const entry: RitmEntry = {
+          Id: (row[idColIndex] ? row[idColIndex].toString() : ""),
+          CMDB_Status: (cmdbStatusColIndex !== -1 && row[cmdbStatusColIndex]) ? 
+                        row[cmdbStatusColIndex].toString() : "N/A"
+        };
+        
+        entries.push(entry);
+        totalEntriesFound++;
       }
-    });
+    }
     
-    uniqueRitmDataMap[ritmNumber] = uniqueEntries;
-  });
+    ritmDataMap[ritmString] = entries;
+  }
   
   // ====================
-  // 5. CREATE FINAL JSON STRUCTURE
+  // 6. CREATE FINAL JSON STRUCTURE
   // ====================
   const result: ProcessingResult = {
     summary: {
-      total_unique_ritms: Object.keys(uniqueRitmDataMap).length,
-      total_source_rows: totalSourceRows
+      total_unique_ritms: uniqueRitmStrings.length,
+      total_source_rows: totalSourceRows,
+      total_entries_found: totalEntriesFound
     },
-    data: uniqueRitmDataMap
+    data: ritmDataMap
   };
   
   // ====================
-  // 6. RETURN THE FULL JSON
+  // 7. RETURN THE FULL JSON
   // ====================
   return JSON.stringify(result, null, 2);
 }
