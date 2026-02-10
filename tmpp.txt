@@ -3,35 +3,54 @@
  * It finds all unique RITM numbers and returns a JSON structure
  * containing ID and CMDB Status information for each occurrence.
  */
+
+// Define interfaces for our data structures
+interface RitmEntry {
+  Id: string;
+  CMDB_Status: string;
+}
+
+interface RitmData {
+  [key: string]: RitmEntry[];
+}
+
+interface ProcessingResult {
+  summary: {
+    total_unique_ritms: number;
+    total_source_rows: number;
+  };
+  data: RitmData;
+}
+
 function main(workbook: ExcelScript.Workbook): string {
   // ====================
   // 1. GET SOURCE TABLE
   // ====================
   const sourceSheet = workbook.getActiveWorksheet();
-  const tables = sourceSheet.getTables();
+  const tables: ExcelScript.Table[] = sourceSheet.getTables();
   
   if (tables.length === 0) {
     console.log("❌ No table found on the active worksheet");
     return JSON.stringify({ error: "No table found on active worksheet" });
   }
   
-  const sourceTable = tables[0];
+  const sourceTable: ExcelScript.Table = tables[0];
   console.log(`📊 Processing table: ${sourceTable.getName()}`);
   
   // ====================
   // 2. FIND COLUMN INDICES
   // ====================
-  const sourceHeaders = sourceTable.getHeaderRowRange().getValues()[0] as string[];
-  const sourceRange = sourceTable.getRangeBetweenHeaderAndTotal();
-  const sourceData = sourceRange.getValues() as (string | number | boolean)[][];
-  const totalSourceRows = sourceData.length;
+  const sourceHeaders: string[] = sourceTable.getHeaderRowRange().getValues()[0] as string[];
+  const sourceRange: ExcelScript.Range = sourceTable.getRangeBetweenHeaderAndTotal();
+  const sourceData: (string | number | boolean)[][] = sourceRange.getValues() as (string | number | boolean)[][];
+  const totalSourceRows: number = sourceData.length;
   
   console.log(`📊 Processing ${totalSourceRows} rows from source table`);
   
   // Find all required column indices
-  const idColIndex = sourceHeaders.indexOf("Id");
-  const ritmColIndex = sourceHeaders.findIndex(h => /^RITM/i.test(h));
-  const cmdbStatusColIndex = sourceHeaders.indexOf("CMDB Status");
+  const idColIndex: number = sourceHeaders.indexOf("Id");
+  const ritmColIndex: number = sourceHeaders.findIndex(h => /^RITM/i.test(h));
+  const cmdbStatusColIndex: number = sourceHeaders.indexOf("CMDB Status");
   
   // Validate critical columns
   if (idColIndex === -1) {
@@ -53,22 +72,22 @@ function main(workbook: ExcelScript.Workbook): string {
   // ====================
   // 3. COLLECT DATA BY RITM NUMBER
   // ====================
-  const ritmDataMap: { [key: string]: any[] } = {};
+  const ritmDataMap: RitmData = {};
   
   // Process each row
   for (let i = 0; i < totalSourceRows; i++) {
-    const row = sourceData[i];
-    const ritmValue = row[ritmColIndex];
+    const row: (string | number | boolean)[] = sourceData[i];
+    const ritmValue: string | number | boolean = row[ritmColIndex];
     
     // Skip rows without RITM value
     if (!ritmValue) continue;
     
-    const ritmString = ritmValue.toString().trim();
+    const ritmString: string = ritmValue.toString().trim();
     
     // Create entry object
-    const entry = {
-      Id: row[idColIndex]?.toString() || "",
-      CMDB_Status: cmdbStatusColIndex !== -1 ? row[cmdbStatusColIndex]?.toString() || "" : "N/A"
+    const entry: RitmEntry = {
+      Id: (row[idColIndex] ? row[idColIndex].toString() : ""),
+      CMDB_Status: (cmdbStatusColIndex !== -1 && row[cmdbStatusColIndex]) ? row[cmdbStatusColIndex].toString() : "N/A"
     };
     
     // Group by RITM number
@@ -82,17 +101,18 @@ function main(workbook: ExcelScript.Workbook): string {
   // ====================
   // 4. REMOVE DUPLICATES WITHIN EACH RITM GROUP
   // ====================
-  const uniqueRitmDataMap: { [key: string]: any[] } = {};
+  const uniqueRitmDataMap: RitmData = {};
   
-  Object.keys(ritmDataMap).forEach(ritmNumber => {
-    const entries = ritmDataMap[ritmNumber];
+  const ritmNumbers: string[] = Object.keys(ritmDataMap);
+  ritmNumbers.forEach(ritmNumber => {
+    const entries: RitmEntry[] = ritmDataMap[ritmNumber];
     
     // Use a Set to track unique ID-CMDB_Status combinations
-    const seen = new Set<string>();
-    const uniqueEntries: any[] = [];
+    const seen: Set<string> = new Set<string>();
+    const uniqueEntries: RitmEntry[] = [];
     
     entries.forEach(entry => {
-      const key = `${entry.Id}|${entry.CMDB_Status}`;
+      const key: string = `${entry.Id}|${entry.CMDB_Status}`;
       if (!seen.has(key)) {
         seen.add(key);
         uniqueEntries.push(entry);
@@ -109,7 +129,7 @@ function main(workbook: ExcelScript.Workbook): string {
   // ====================
   // 5. CREATE FINAL JSON STRUCTURE
   // ====================
-  const result = {
+  const result: ProcessingResult = {
     summary: {
       total_unique_ritms: Object.keys(uniqueRitmDataMap).length,
       total_source_rows: totalSourceRows
@@ -120,12 +140,12 @@ function main(workbook: ExcelScript.Workbook): string {
   // ====================
   // 6. OUTPUT RESULTS
   // ====================
-  const jsonOutput = JSON.stringify(result, null, 2);
+  const jsonOutput: string = JSON.stringify(result, null, 2);
   console.log(`✅ Processing complete. Found ${Object.keys(uniqueRitmDataMap).length} unique RITM numbers.`);
   console.log("📋 JSON output generated successfully.");
   
   // Also log a sample for verification
-  const sampleRitms = Object.keys(uniqueRitmDataMap).slice(0, 3);
+  const sampleRitms: string[] = ritmNumbers.slice(0, 3);
   sampleRitms.forEach(ritm => {
     console.log(`   Sample - RITM ${ritm}: ${uniqueRitmDataMap[ritm].length} entries`);
   });
@@ -139,18 +159,19 @@ function main(workbook: ExcelScript.Workbook): string {
  * Can be used if you want to query individual RITMs.
  */
 function findRitmEntries(workbook: ExcelScript.Workbook, ritmToFind: string): string {
-  const mainResult = main(workbook);
-  const parsedResult = JSON.parse(mainResult);
+  const mainResult: string = main(workbook);
   
-  if (parsedResult.error) {
-    return JSON.stringify(parsedResult);
+  try {
+    const parsedResult: ProcessingResult = JSON.parse(mainResult) as ProcessingResult;
+    
+    const specificResult = {
+      ritm_requested: ritmToFind,
+      found: ritmToFind in parsedResult.data,
+      entries: parsedResult.data[ritmToFind] || []
+    };
+    
+    return JSON.stringify(specificResult, null, 2);
+  } catch (error) {
+    return mainResult; // Return the original error if parsing fails
   }
-  
-  const specificResult = {
-    ritm_requested: ritmToFind,
-    found: ritmToFind in parsedResult.data,
-    entries: parsedResult.data[ritmToFind] || []
-  };
-  
-  return JSON.stringify(specificResult, null, 2);
 }
