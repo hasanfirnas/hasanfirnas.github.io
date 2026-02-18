@@ -1,135 +1,412 @@
-/**
- * This Office Script processes a table containing RITM data.
- * It finds all unique RITM numbers and returns ALL occurrences
- * of each RITM with their ID and CMDB Status information.
- */
+function main(workbook: ExcelScript.Workbook) {
+  // ====================
+  // 1. CONFIGURATION & TOGGLES
+  // ====================
+  const SOURCE_SHEET = "Sheet1";
+  const SOURCE_TABLE = "OfficeForms.Table";
+  const BIN_SHEET = "Bin";
+  const BIN_TABLE = "Bin.Table";
+  const OUTPUT_SHEET = "Output";
+  const OUTPUT_TABLE = "OuputTable";
+  
+  // CMDB Status values that trigger move to bin (Rule 3 - runs first)
+  const STATUS_VALUES_TO_BIN = [
+    "application team rejected", 
+    "cancelled", 
+    "unauthorized submission",
+    "submitted again"  // ← ADDED for your new requirement
+  ];
+  
+  // Status values that should NOT be changed to "Bin-Duplicate"
+  const PRESERVE_STATUSES = [
+    "application team rejected", 
+    "unauthorized submission", 
+    "cancelled",
+    "submitted again"  // ← ADDED - keep this status when moving
+  ];
+  
+  // LOGGING CONTROL - COMMENT THIS LINE FOR PRODUCTION/POWER AUTOMATE
+  const ENABLE_LOGGING = true;
 
-// Define interfaces for our data structures
-interface RitmEntry {
-  Id: string;
-  CMDB_Status: string;
-}
-
-interface RitmData {
-  [key: string]: RitmEntry[];
-}
-
-interface ProcessingResult {
-  summary: {
-    total_unique_ritms: number;
-    total_source_rows: number;
-    total_entries_found: number;
-  };
-  data: RitmData;
-}
-
-function main(workbook: ExcelScript.Workbook): string {
   // ====================
-  // 1. GET SOURCE TABLE
+  // FUNCTION: Clear All Table Filters
   // ====================
-  const sourceSheet = workbook.getActiveWorksheet();
-  const tables: ExcelScript.Table[] = sourceSheet.getTables();
-  
-  if (tables.length === 0) {
-    return JSON.stringify({ error: "No table found on active worksheet" }, null, 2);
-  }
-  
-  const sourceTable: ExcelScript.Table = tables[0];
-  
-  // ====================
-  // 2. FIND COLUMN INDICES
-  // ====================
-  const sourceHeaders: string[] = sourceTable.getHeaderRowRange().getValues()[0] as string[];
-  const sourceRange: ExcelScript.Range = sourceTable.getRangeBetweenHeaderAndTotal();
-  const sourceData: (string | number | boolean)[][] = sourceRange.getValues() as (string | number | boolean)[][];
-  const totalSourceRows: number = sourceData.length;
-  
-  // Find all required column indices
-  const idColIndex: number = sourceHeaders.indexOf("Id");
-  const ritmColIndex: number = sourceHeaders.findIndex(h => /^RITM/i.test(h));
-  const cmdbStatusColIndex: number = sourceHeaders.indexOf("CMDB Status");
-  
-  // Validate critical columns
-  if (idColIndex === -1) {
-    return JSON.stringify({ error: "'Id' column not found in source table" }, null, 2);
-  }
-  
-  if (ritmColIndex === -1) {
-    return JSON.stringify({ error: "No RITM column found in source table" }, null, 2);
-  }
-  
-  // ====================
-  // 3. EXTRACT ALL RITM VALUES (AS STRINGS)
-  // ====================
-  const allRitmStrings: string[] = [];
-  
-  // First pass: Extract all RITM values as strings
-  for (let i = 0; i < totalSourceRows; i++) {
-    const ritmValue = sourceData[i][ritmColIndex];
-    if (ritmValue) {
-      allRitmStrings.push(ritmValue.toString().trim());
-    }
-  }
-  
-  // ====================
-  // 4. REMOVE DUPLICATE RITM STRINGS ONLY
-  // ====================
-  const uniqueRitmStrings: string[] = [];
-  const seenRitms = new Set<string>();
-  
-  for (const ritmString of allRitmStrings) {
-    if (!seenRitms.has(ritmString)) {
-      seenRitms.add(ritmString);
-      uniqueRitmStrings.push(ritmString);
-    }
-  }
-  
-  // ====================
-  // 5. FOR EACH UNIQUE RITM, FIND ALL MATCHING ROWS
-  // ====================
-  const ritmDataMap: RitmData = {};
-  let totalEntriesFound = 0;
-  
-  // For each unique RITM string
-  for (const ritmString of uniqueRitmStrings) {
-    const entries: RitmEntry[] = [];
-    
-    // Search through ALL rows for this RITM
-    for (let i = 0; i < totalSourceRows; i++) {
-      const row = sourceData[i];
-      const currentRitmValue = row[ritmColIndex];
+  function clearAllTableFilters(workbook: ExcelScript.Workbook): void {
+      console.log("🧹 Checking for and clearing table filters...");
+      const allSheets = workbook.getWorksheets();
+      let clearedCount = 0;
       
-      // Check if this row's RITM matches our current RITM
-      if (currentRitmValue && currentRitmValue.toString().trim() === ritmString) {
-        // Create entry object
-        const entry: RitmEntry = {
-          Id: (row[idColIndex] ? row[idColIndex].toString() : ""),
-          CMDB_Status: (cmdbStatusColIndex !== -1 && row[cmdbStatusColIndex]) ? 
-                        row[cmdbStatusColIndex].toString() : "N/A"
-        };
+      for (const sheet of allSheets) {
+          try {
+              const tables = sheet.getTables();
+              for (const table of tables) {
+                  table.clearFilters();  // ✅ Official method [citation:4]
+                  clearedCount++;
+                  console.log(`   ✅ Cleared filters from table: "${table.getName()}" in sheet: "${sheet.getName()}"`);
+              }
+          } catch (error) {
+              // Skip sheets with issues
+          }
+      }
+      console.log(`✅ Filter clearing complete. Processed ${clearedCount} tables.`);
+  }
+  
+  // ====================
+  // 2. LOGGING SYSTEM
+  // ====================
+  let logSheet: ExcelScript.Worksheet | null = null;
+  let logTable: ExcelScript.Table | null = null;
+  
+  if (ENABLE_LOGGING) {
+    try {
+      try {
+        const oldLogSheet = workbook.getWorksheet("Script_Logs");
+        oldLogSheet.delete();
+      } catch (e) { /* Sheet doesn't exist */ }
+      
+      logSheet = workbook.addWorksheet("Script_Logs");
+      logSheet.getRange("A1:E1").setValues([["Timestamp", "Row_ID", "RITM", "Action", "Details"]]);
+      logTable = logSheet.addTable("A1:E1", true);
+      logTable.setName("ScriptLogs");
+      console.log("📋 Log sheet created: 'Script_Logs'");
+    } catch (error) {
+      console.log("⚠️ Could not create log sheet. Continuing without logs.");
+    }
+  }
+  
+  function addLog(rowId: string, ritm: string, action: string, details: string) {
+    if (!ENABLE_LOGGING || !logTable) return;
+    try {
+      const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
+      logTable.addRow(-1, [timestamp, rowId, ritm, action, details]);
+    } catch (e) { /* Silent fail */ }
+  }
+  
+  // ====================
+  // 3. INITIALIZATION
+  // ====================
+  console.log("🚀 Starting Enhanced Bin Automation");
+  
+  const sourceSheet = workbook.getWorksheet(SOURCE_SHEET);
+  const binSheet = workbook.getWorksheet(BIN_SHEET);
+  const outputSheet = workbook.getWorksheet(OUTPUT_SHEET);
+  
+  if (!sourceSheet || !binSheet) {
+    console.log("❌ Source or Bin sheet not found");
+    return;
+  }
+  
+  const sourceTable = sourceSheet.getTable(SOURCE_TABLE);
+  const binTable = binSheet.getTable(BIN_TABLE);
+  
+  if (!sourceTable || !binTable) {
+    console.log("❌ Source or Bin table not found");
+    return;
+  }
+  
+  // ====================
+  // 4. FIND COLUMN INDICES
+  // ====================
+  const sourceHeaders = sourceTable.getHeaderRowRange().getValues()[0] as string[];
+  const sourceRange = sourceTable.getRangeBetweenHeaderAndTotal();
+  const sourceData = sourceRange.getValues() as (string | number | boolean)[][];
+  const totalSourceRows = sourceData.length;
+  
+  console.log(`📊 Processing ${totalSourceRows} rows from source`);
+  
+  const idColIndex = sourceHeaders.indexOf("Id");
+  const ritmColIndex = sourceHeaders.findIndex(h => /^RITM/i.test(h));
+  const cmdbStatusColIndex = sourceHeaders.indexOf("CMDB Status");
+  
+  if (idColIndex === -1) {
+    console.log("❌ 'Id' column not found in source table");
+    return;
+  }
+  
+  if (ritmColIndex === -1) console.log("⚠️ No RITM column found - Rules 1 & 2 will be skipped");
+  if (cmdbStatusColIndex === -1) console.log("⚠️ No CMDB Status column found - Rule 3 will be skipped");
+  
+  // ====================
+  // 5. PREPARE OUTPUT SHEET
+  // ====================
+  let outputTable: ExcelScript.Table | undefined;
+  let outputIdColIndex = -1;
+  let outputCmdbColIndex = -1;
+  let outputIdToRowMap: Map<string, number> | null = null;
+  
+  if (outputSheet) {
+    try {
+      outputTable = outputSheet.getTable(OUTPUT_TABLE);
+      if (outputTable) {
+        const outputHeaders = outputTable.getHeaderRowRange().getValues()[0] as string[];
+        outputIdColIndex = outputHeaders.indexOf("Id");
+        outputCmdbColIndex = outputHeaders.indexOf("CMDB Status");
         
-        entries.push(entry);
-        totalEntriesFound++;
+        if (outputIdColIndex !== -1) {
+          const outputRange = outputTable.getRangeBetweenHeaderAndTotal();
+          const outputData = outputRange.getValues() as (string | number | boolean)[][];
+          outputIdToRowMap = new Map();
+          
+          for (let j = 0; j < outputData.length; j++) {
+            const outputId = outputData[j][outputIdColIndex];
+            if (outputId != null) {
+              const idStr = String(outputId).trim();
+              if (idStr !== "") outputIdToRowMap.set(idStr, j);
+            }
+          }
+          console.log(`📋 Output sheet: Loaded ${outputIdToRowMap.size} IDs for fast lookup`);
+        }
+      }
+    } catch (e) {
+      console.log("⚠️ Output table not accessible. Will only update source sheet.");
+    }
+  }
+  
+  // ====================
+  // 6. EXISTING BIN IDs
+  // ====================
+  const binRange = binTable.getRangeBetweenHeaderAndTotal();
+  const binData = binRange.getValues() as (string | number | boolean)[][];
+  const binHeaders = binTable.getHeaderRowRange().getValues()[0] as string[];
+  const binIdColIndex = binHeaders.indexOf("Id");
+  const existingBinIds = new Set<string>();
+  
+  if (binIdColIndex !== -1) {
+    for (const row of binData) {
+      const id = row[binIdColIndex];
+      if (id != null && String(id).trim() !== "") existingBinIds.add(String(id).trim());
+    }
+  }
+  
+  // ====================
+  // 7. IDENTIFY ROWS TO MOVE (Three Rules)
+  // ====================
+  const rowsMarkedForBin = new Set<number>();
+  const rowReasons: { [key: number]: string } = {};
+  const rowStatuses: { [key: number]: string } = {};
+  
+  // 🟢 RULE 3 (FIRST): Specific CMDB Status Values
+  if (cmdbStatusColIndex !== -1) {
+    for (let i = 0; i < sourceData.length; i++) {
+      const statusValue = sourceData[i][cmdbStatusColIndex];
+      if (statusValue != null) {
+        const statusStr = String(statusValue).toLowerCase().trim();
+        if (STATUS_VALUES_TO_BIN.some(badStatus => statusStr === badStatus.toLowerCase())) {
+          rowsMarkedForBin.add(i);
+          rowReasons[i] = `CMDB Status: '${statusValue}'`;
+          rowStatuses[i] = String(statusValue);
+          const idValue = sourceData[i][idColIndex];
+          addLog(String(idValue), "", "MARK_STATUS", `Status: ${statusValue}`);
+        }
+      }
+    }
+  }
+  
+  // 🟢 RULE 1: Duplicate RITMs – keep highest unmarked ID
+  if (ritmColIndex !== -1) {
+    const ritmGroups: { [key: string]: { rowIndex: number, id: number }[] } = {};
+    
+    for (let i = 0; i < sourceData.length; i++) {
+      const ritmValue = sourceData[i][ritmColIndex];
+      const idValue = sourceData[i][idColIndex];
+      
+      if (ritmValue && String(ritmValue).trim() !== "" && idValue != null) {
+        const ritmKey = String(ritmValue).trim().toUpperCase();
+        const idNum = Number(idValue);
+        
+        if (!isNaN(idNum)) {
+          if (!ritmGroups[ritmKey]) ritmGroups[ritmKey] = [];
+          ritmGroups[ritmKey].push({ rowIndex: i, id: idNum });
+        }
       }
     }
     
-    ritmDataMap[ritmString] = entries;
+    for (const ritmKey in ritmGroups) {
+      const entries = ritmGroups[ritmKey];
+      if (entries.length <= 1) continue;
+      
+      entries.sort((a, b) => a.id - b.id);
+      
+      // Find the highest ID that is NOT already marked
+      let keeperIndex = -1;
+      for (let i = entries.length - 1; i >= 0; i--) {
+        if (!rowsMarkedForBin.has(entries[i].rowIndex)) {
+          keeperIndex = i;
+          break;
+        }
+      }
+      
+      if (keeperIndex === -1) continue; // All rows already marked
+      
+      const keeper = entries[keeperIndex];
+      
+      for (const entry of entries) {
+        if (entry.rowIndex !== keeper.rowIndex && !rowsMarkedForBin.has(entry.rowIndex)) {
+          rowsMarkedForBin.add(entry.rowIndex);
+          rowReasons[entry.rowIndex] = `Duplicate RITM '${ritmKey}' (older duplicate of ID ${keeper.id})`;
+          const idValue = sourceData[entry.rowIndex][idColIndex];
+          addLog(String(idValue), ritmKey, "MARK_DUPLICATE", `Older duplicate of ID ${keeper.id}`);
+        }
+      }
+    }
+  }
+  
+  // 🟢 RULE 2: Empty RITM Cells
+  if (ritmColIndex !== -1) {
+    for (let i = 0; i < sourceData.length; i++) {
+      if (rowsMarkedForBin.has(i)) continue;
+      
+      const ritmValue = sourceData[i][ritmColIndex];
+      if (ritmValue == null || String(ritmValue).trim() === "") {
+        rowsMarkedForBin.add(i);
+        rowReasons[i] = "Empty RITM";
+        const idValue = sourceData[i][idColIndex];
+        addLog(String(idValue), "", "MARK_EMPTY_RITM", "RITM cell is empty");
+      }
+    }
+  }
+  
+  console.log(`✅ Analysis complete: ${rowsMarkedForBin.size} rows to process`);
+  
+  // ====================
+  // CLEAR ALL FILTERS BEFORE PROCEEDING
+  // ====================
+  clearAllTableFilters(workbook);
+
+  // ====================
+  // 8. UPDATE CMDB STATUS & MOVE TO BIN
+  // ====================
+  const rowsToProcess = Array.from(rowsMarkedForBin).sort((a, b) => b - a);
+  let movedCount = 0;
+  let skippedCount = 0;
+  let sourceUpdatedCount = 0;
+  let outputUpdatedCount = 0;
+  const rowsToDelete: number[] = [];
+  
+  for (const sourceRowIndex of rowsToProcess) {
+    const sourceRow = sourceData[sourceRowIndex];
+    const rowId = sourceRow[idColIndex];
+    const rowIdStr = rowId != null ? String(rowId).trim() : "";
+    const ritmValue = ritmColIndex !== -1 ? sourceRow[ritmColIndex] : "";
+    const ritmStr = ritmValue != null ? String(ritmValue).trim() : "";
+    
+    if (rowIdStr === "") {
+      addLog("", ritmStr, "SKIP_NO_ID", "Row has no ID - skipping");
+      skippedCount++;
+      continue;
+    }
+    
+    // 🔥 CRITICAL FIX: Even if ID exists in bin, still delete from source
+    if (existingBinIds.has(rowIdStr)) {
+      addLog(rowIdStr, ritmStr, "ALREADY_IN_BIN", "ID exists in bin - will delete from source only");
+      rowsToDelete.push(sourceRowIndex);
+      continue;
+    }
+    
+    let newStatus: string = "";
+    let updateSource = false;
+    let updateOutput = false;
+    
+    if (cmdbStatusColIndex !== -1) {
+      const currentStatus = sourceRow[cmdbStatusColIndex];
+      const statusStr = currentStatus != null ? String(currentStatus).trim() : "";
+      
+      // Check if status should be preserved
+      const shouldUpdate = !PRESERVE_STATUSES.some(preserve => 
+        statusStr.toLowerCase() === preserve.toLowerCase());
+      
+      if (shouldUpdate) {
+        newStatus = "Bin-Duplicate";
+        updateSource = true;
+        updateOutput = true;
+      } else {
+        newStatus = statusStr; // Keep original preserved status
+        updateOutput = (outputIdToRowMap?.has(rowIdStr) ?? false);
+      }
+    }
+    
+    // Update Source Sheet
+    if (updateSource && cmdbStatusColIndex !== -1) {
+      const sourceStatusCell = sourceRange.getCell(sourceRowIndex, cmdbStatusColIndex);
+      sourceStatusCell.setValue(newStatus);
+      sourceRow[cmdbStatusColIndex] = newStatus; // Update memory too
+      sourceUpdatedCount++;
+      addLog(rowIdStr, ritmStr, "UPDATE_SOURCE", `Set status to '${newStatus}'`);
+    }
+    
+    // Update Output Sheet
+    if (updateOutput && outputTable && outputIdToRowMap && outputCmdbColIndex !== -1) {
+      const outputRowIndex = outputIdToRowMap.get(rowIdStr);
+      if (outputRowIndex !== undefined) {
+        const outputRange = outputTable.getRangeBetweenHeaderAndTotal();
+        const outputStatusCell = outputRange.getCell(outputRowIndex, outputCmdbColIndex);
+        outputStatusCell.setValue(newStatus);
+        outputUpdatedCount++;
+        addLog(rowIdStr, ritmStr, "UPDATE_OUTPUT", `Set status to '${newStatus}'`);
+      } else {
+        addLog(rowIdStr, ritmStr, "OUTPUT_NOT_FOUND", "ID not found in output sheet");
+      }
+    }
+    
+    // Move to Bin
+    const newBinRow: (string | number | boolean)[] = [];
+    for (const binHeader of binHeaders) {
+      const sourceColIndex = sourceHeaders.indexOf(binHeader);
+      newBinRow.push(sourceColIndex !== -1 ? sourceRow[sourceColIndex] : "");
+    }
+    
+    binTable.addRow(-1, newBinRow);
+    existingBinIds.add(rowIdStr);
+    movedCount++;
+    rowsToDelete.push(sourceRowIndex);
+    
+    // Apply strikethrough
+    try {
+      const newBinRange = binTable.getRangeBetweenHeaderAndTotal();
+      const lastRowIndex = newBinRange.getRowCount() - 1;
+      if (lastRowIndex >= 0) {
+        const lastRow = newBinRange.getRow(lastRowIndex);
+        lastRow.getFormat().getFont().setStrikethrough(true);
+      }
+    } catch (e) { /* Silent fail */ }
+    
+    addLog(rowIdStr, ritmStr, "MOVED_TO_BIN", `Reason: ${rowReasons[sourceRowIndex]}`);
   }
   
   // ====================
-  // 6. CREATE FINAL JSON STRUCTURE
+  // 9. DELETE FROM SOURCE
   // ====================
-  const result: ProcessingResult = {
-    summary: {
-      total_unique_ritms: uniqueRitmStrings.length,
-      total_source_rows: totalSourceRows,
-      total_entries_found: totalEntriesFound
-    },
-    data: ritmDataMap
-  };
+  if (rowsToDelete.length > 0) {
+    rowsToDelete.sort((a, b) => b - a);
+    const updatedSourceRange = sourceTable.getRangeBetweenHeaderAndTotal();
+    const currentRowCount = updatedSourceRange.getRowCount();
+    
+    for (const sourceRowIndex of rowsToDelete) {
+      if (sourceRowIndex < currentRowCount) {
+        updatedSourceRange.getRow(sourceRowIndex).delete(ExcelScript.DeleteShiftDirection.up);
+      }
+    }
+    console.log(`🗑️  Deleted ${Math.min(rowsToDelete.length, currentRowCount)} rows from source`);
+  }
   
   // ====================
-  // 7. RETURN THE FULL JSON
+  // 10. FINAL SUMMARY
   // ====================
-  return JSON.stringify(result, null, 2);
+  console.log("=".repeat(50));
+  console.log("🏁 SCRIPT EXECUTION COMPLETE");
+  console.log("=".repeat(50));
+  console.log(`Total Rows Processed: ${totalSourceRows}`);
+  console.log(`Rows Moved to Bin: ${movedCount}`);
+  console.log(`Rows Skipped: ${skippedCount} (duplicate IDs or empty)`);
+  console.log(`Source Sheet Updates: ${sourceUpdatedCount}`);
+  console.log(`Output Sheet Updates: ${outputUpdatedCount}`);
+  console.log("");
+  
+  if (ENABLE_LOGGING) {
+    console.log("📋 Detailed logs available in 'Script_Logs' sheet");
+    console.log("   To disable logging for production, comment out line 22:");
+    console.log("   // const ENABLE_LOGGING = true;");
+  }
+  
+  console.log("=".repeat(50));
 }
