@@ -1,8 +1,5 @@
 /**
- * Searches for a RITM ID in the output table.
- * If found, logs all occurrences with Id and CMDB Status.
- * If not found, logs "new".
- * 
+ * Searches the output table for a given RITM and decides whether to allow a new submission.
  * @param workbook - The Excel workbook object.
  * @param ritmInput - The RITM ID to search for (user will be prompted).
  */
@@ -11,7 +8,7 @@
 // CONFIGURATION – Update these values as needed
 // ====================
 const OUTPUT_SHEET = "Output";
-const OUTPUT_TABLE = "OuputTable";   // Note: spelling as provided
+const OUTPUT_TABLE = "OuputTable";
 
 function main(workbook: ExcelScript.Workbook, ritmInput: string): void {
   // Validate input
@@ -39,11 +36,8 @@ function main(workbook: ExcelScript.Workbook, ritmInput: string): void {
   const headers: string[] = table.getHeaderRowRange().getValues()[0] as string[];
 
   // Find column indices
-  // ID column: first column of the table (index 0) – as per your statement
-  const idColIndex: number = 0;  
-  // RITM column: any header that starts with "RITM" (case‑insensitive)
+  const idColIndex: number = 0;                      // First column is Id
   const ritmColIndex: number = headers.findIndex(h => /^RITM/i.test(h));
-  // CMDB Status column: exact match
   const cmdbStatusColIndex: number = headers.indexOf("CMDB Status");
 
   // Validate critical columns
@@ -60,7 +54,12 @@ function main(workbook: ExcelScript.Workbook, ritmInput: string): void {
   const data: (string | number | boolean)[][] = dataRange.getValues() as (string | number | boolean)[][];
 
   // Collect all rows that match the input RITM
-  const matches: { ritm: string; id: string; status: string }[] = [];
+  interface Match {
+    ritm: string;
+    id: string;
+    status: string;
+  }
+  const matches: Match[] = [];
 
   for (let i = 0; i < data.length; i++) {
     const row = data[i];
@@ -68,7 +67,6 @@ function main(workbook: ExcelScript.Workbook, ritmInput: string): void {
     if (!cellValue) continue;
 
     const ritmValue: string = cellValue.toString().trim();
-    // Case‑insensitive comparison
     if (ritmValue.toLowerCase() === searchRitm.toLowerCase()) {
       const idValue: string = row[idColIndex] ? row[idColIndex].toString() : "";
       const statusValue: string = (cmdbStatusColIndex !== -1 && row[cmdbStatusColIndex])
@@ -78,13 +76,46 @@ function main(workbook: ExcelScript.Workbook, ritmInput: string): void {
     }
   }
 
-  // Output result
+  // If no matches, it's a new RITM
   if (matches.length === 0) {
-    console.log("new");
+    console.log("pass:new");
+    return;
+  }
+
+  // Log all matches for inspection
+  console.log(`Found ${matches.length} occurrence(s) of RITM ${searchRitm}:`);
+  matches.forEach((match, index) => {
+    console.log(`[${index + 1}] RITM: ${match.ritm}, Id: ${match.id}, CMDB Status: ${match.status}`);
+  });
+
+  // ====================
+  // DECISION LOGIC
+  // ====================
+  // Define blocking statuses and their priority (higher number = higher priority)
+  const blockingStatusPriority: { [key: string]: number } = {
+    "Cancelled": 5,
+    "Closed Complete": 4,
+    "Active": 3,
+    "Submitted Again": 2,
+    "Bin-Duplicate": 1
+  };
+
+  let highestPriority = 0;
+  let reason = "";
+
+  for (const match of matches) {
+    const status = match.status;
+    const priority = blockingStatusPriority[status];
+    if (priority !== undefined && priority > highestPriority) {
+      highestPriority = priority;
+      reason = status;
+    }
+  }
+
+  // Output final decision
+  if (highestPriority > 0) {
+    console.log(`reject:${reason}`);
   } else {
-    console.log(`Found ${matches.length} occurrence(s) of RITM ${searchRitm}:`);
-    matches.forEach((match, index) => {
-      console.log(`[${index + 1}] RITM: ${match.ritm}, Id: ${match.id}, CMDB Status: ${match.status}`);
-    });
+    console.log("pass:new");
   }
 }
