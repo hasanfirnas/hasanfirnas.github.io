@@ -1,35 +1,22 @@
----
-
-## 📧 Email Templates for Each Rejection Reason
-
-| Script Output | Template Type | Message (with placeholders) |
-|---------------|---------------|-----------------------------|
-| **`pass:new`** | Allow | *No email – continue flow.* |
-| **`reject:Active`** | Detailed | **Subject:** Form Submission Rejected – RITM Already in Review<br><br>**Body:**<br>Your form submission for RITM `{RITM}` has been rejected because this request is already **Active** and under review.<br><br>**Details of the existing submission:**<br>• Submitted by: `{SubmittedBy}`<br>• Submission ID: `{Id}`<br><br>Please wait until that submission is closed before resubmitting. If you believe the existing information is incorrect, please **set up a call with Hassan** immediately to resolve the issue. |
-| **`reject:Closed Complete`** | Detailed | **Subject:** Form Submission Rejected – RITM Already Closed<br><br>**Body:**<br>Your form submission for RITM `{RITM}` has been rejected because this request is already **Closed Complete**. A previous submission has been fully processed.<br><br>**Details of the completed submission:**<br>• Submitted by: `{SubmittedBy}`<br>• Submission ID: `{Id}`<br><br>If you need to update the PCI flag for this CI, please submit an **Update CI Request** via [Insert Link Here]. **Important:** Do **not** submit an update request if the CI is not operational – wait until it is operational. |
-| **`reject:Cancelled`** | Detailed | **Subject:** Form Submission Rejected – RITM Cancelled<br><br>**Body:**<br>Your form submission for RITM `{RITM}` has been rejected because this RITM is marked as **Cancelled** in ServiceNow. Cancelled requests cannot be processed.<br><br>If you believe this is an error, please contact the ServiceNow administrator to verify the RITM status. |
-| **`reject:Submitted Again`** | Simple | **Subject:** Form Submission Rejected – Duplicate Attempt Detected<br><br>**Body:**<br>Your form submission for RITM `{RITM}` has been rejected because a previous submission was already made and marked as **Submitted Again**. This indicates that the request was already processed or rejected.<br><br>No further action is needed. If you have questions, please contact Hassan. |
-| **`reject:Bin-Duplicate`** | Simple | **Subject:** Form Submission Rejected – Duplicate Entry Detected<br><br>**Body:**<br>Your form submission for RITM `{RITM}` has been rejected because duplicate entries for this RITM were found. To maintain data integrity, we cannot accept another duplicate.<br><br>If you need to correct information, please update the original submission instead of creating a new one. For assistance, contact Hassan. |
-
----
-
-Your form submission for RITM {RITM} has been rejected because a duplicate or previously processed entry was detected.
-
-If you need assistance, please contact Hasan.
-
-
 /**
  * Searches the output table for a given RITM and decides whether to allow a new submission.
- * Returns "pass:new" if allowed, otherwise "reject:<reason>".
+ * Returns:
+ *   - "pass:new" if allowed
+ *   - "reject:<reason>" for marker reasons (Bin-Duplicate, Submitted Again)
+ *   - "reject:<reason>:<email>" for detailed reasons (Active, Closed Complete, Cancelled)
  * @param workbook - The Excel workbook object.
  * @param ritmInput - The RITM ID to search for (user will be prompted).
  */
 
 // ====================
-// CONFIGURATION
+// CONFIGURATION – Update these values as needed
 // ====================
 const OUTPUT_SHEET = "Output";
 const OUTPUT_TABLE = "OuputTable";
+const SOURCE_SHEET = "Sheet1";
+const SOURCE_TABLE = "OfficeForms.Table";
+const BIN_SHEET = "Bin";
+const BIN_TABLE = "Bin.Table";
 
 function main(workbook: ExcelScript.Workbook, ritmInput: string): string {
   // Validate input
@@ -43,14 +30,14 @@ function main(workbook: ExcelScript.Workbook, ritmInput: string): string {
   const sheet: ExcelScript.Worksheet = workbook.getWorksheet(OUTPUT_SHEET);
   if (!sheet) {
     console.log(`Error: Worksheet "${OUTPUT_SHEET}" not found.`);
-    return `error:sheet_not_found`;
+    return "error:sheet_not_found";
   }
 
   // Get the output table
   const table: ExcelScript.Table = sheet.getTable(OUTPUT_TABLE);
   if (!table) {
     console.log(`Error: Table "${OUTPUT_TABLE}" not found in sheet "${OUTPUT_SHEET}".`);
-    return `error:table_not_found`;
+    return "error:table_not_found";
   }
 
   // Get headers
@@ -103,7 +90,7 @@ function main(workbook: ExcelScript.Workbook, ritmInput: string): string {
     return "pass:new";
   }
 
-  // Log all matches for inspection (these will appear in Power Automate logs)
+  // Log all matches for inspection
   console.log(`Found ${matches.length} occurrence(s) of RITM ${searchRitm}:`);
   matches.forEach((match, index) => {
     console.log(`[${index + 1}] RITM: ${match.ritm}, Id: ${match.id}, CMDB Status: ${match.status}`);
@@ -123,6 +110,7 @@ function main(workbook: ExcelScript.Workbook, ritmInput: string): string {
 
   let highestPriority = 0;
   let reason = "";
+  let responsibleId = "";  // ID of the row that caused the highest priority
 
   for (const match of matches) {
     const status = match.status;
@@ -130,13 +118,88 @@ function main(workbook: ExcelScript.Workbook, ritmInput: string): string {
     if (priority !== undefined && priority > highestPriority) {
       highestPriority = priority;
       reason = status;
+      responsibleId = match.id;
     }
   }
 
-  // Return final decision
-  if (highestPriority > 0) {
-    return `reject:${reason}`;
-  } else {
+  // If no blocking status found, it's pass
+  if (highestPriority === 0) {
     return "pass:new";
   }
+
+  // Determine if we need to fetch email (only for detailed reasons)
+  const detailedReasons = ["Active", "Closed Complete", "Cancelled"];
+  if (detailedReasons.includes(reason)) {
+    const email = lookupEmail(workbook, responsibleId);
+    return `reject:${reason}:${email}`;
+  } else {
+    // Marker reasons (Submitted Again, Bin-Duplicate) – no email
+    return `reject:${reason}`;
+  }
+}
+
+/**
+ * Looks up an email address for a given ID, first in the source sheet, then in the bin sheet.
+ * Returns the email if found, otherwise "noemail".
+ */
+function lookupEmail(workbook: ExcelScript.Workbook, id: string): string {
+  // Try source sheet first
+  let email = searchTableForEmail(workbook, SOURCE_SHEET, SOURCE_TABLE, id);
+  if (email) return email;
+
+  // Then try bin sheet
+  email = searchTableForEmail(workbook, BIN_SHEET, BIN_TABLE, id);
+  if (email) return email;
+
+  // Not found anywhere
+  return "noemail";
+}
+
+/**
+ * Searches a specific table for a row with the given ID and returns the email from that row.
+ * Returns empty string if not found or email column missing.
+ */
+function searchTableForEmail(
+  workbook: ExcelScript.Workbook,
+  sheetName: string,
+  tableName: string,
+  targetId: string
+): string {
+  const sheet = workbook.getWorksheet(sheetName);
+  if (!sheet) {
+    console.log(`Warning: Sheet "${sheetName}" not found.`);
+    return "";
+  }
+
+  const table = sheet.getTable(tableName);
+  if (!table) {
+    console.log(`Warning: Table "${tableName}" not found in sheet "${sheetName}".`);
+    return "";
+  }
+
+  const headers: string[] = table.getHeaderRowRange().getValues()[0] as string[];
+  const idColIndex = headers.indexOf("Id");
+  if (idColIndex === -1) {
+    console.log(`Warning: No 'Id' column in table "${tableName}".`);
+    return "";
+  }
+
+  const emailColIndex = headers.findIndex(h => /email/i.test(h));
+  if (emailColIndex === -1) {
+    console.log(`Warning: No 'Email' column in table "${tableName}".`);
+    return "";
+  }
+
+  const dataRange = table.getRangeBetweenHeaderAndTotal();
+  const data = dataRange.getValues() as (string | number | boolean)[][];
+
+  for (const row of data) {
+    const rowId = row[idColIndex] ? row[idColIndex].toString() : "";
+    if (rowId === targetId) {
+      const email = row[emailColIndex] ? row[emailColIndex].toString() : "";
+      return email || "noemail"; // return "noemail" if email cell empty
+    }
+  }
+
+  return ""; // ID not found
 }
