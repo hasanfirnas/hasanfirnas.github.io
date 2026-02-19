@@ -1,3 +1,21 @@
+---
+
+## 📧 Email Templates for Each Rejection Reason
+
+| Script Output | Template Type | Message (with placeholders) |
+|---------------|---------------|-----------------------------|
+| **`pass:new`** | Allow | *No email – continue flow.* |
+| **`reject:Active`** | Detailed | **Subject:** Form Submission Rejected – RITM Already in Review<br><br>**Body:**<br>Your form submission for RITM `{RITM}` has been rejected because this request is already **Active** and under review.<br><br>**Details of the existing submission:**<br>• Submitted by: `{SubmittedBy}`<br>• Submission ID: `{Id}`<br><br>Please wait until that submission is closed before resubmitting. If you believe the existing information is incorrect, please **set up a call with Hassan** immediately to resolve the issue. |
+| **`reject:Closed Complete`** | Detailed | **Subject:** Form Submission Rejected – RITM Already Closed<br><br>**Body:**<br>Your form submission for RITM `{RITM}` has been rejected because this request is already **Closed Complete**. A previous submission has been fully processed.<br><br>**Details of the completed submission:**<br>• Submitted by: `{SubmittedBy}`<br>• Submission ID: `{Id}`<br><br>If you need to update the PCI flag for this CI, please submit an **Update CI Request** via [Insert Link Here]. **Important:** Do **not** submit an update request if the CI is not operational – wait until it is operational. |
+| **`reject:Cancelled`** | Detailed | **Subject:** Form Submission Rejected – RITM Cancelled<br><br>**Body:**<br>Your form submission for RITM `{RITM}` has been rejected because this RITM is marked as **Cancelled** in ServiceNow. Cancelled requests cannot be processed.<br><br>If you believe this is an error, please contact the ServiceNow administrator to verify the RITM status. |
+| **`reject:Submitted Again`** | Simple | **Subject:** Form Submission Rejected – Duplicate Attempt Detected<br><br>**Body:**<br>Your form submission for RITM `{RITM}` has been rejected because a previous submission was already made and marked as **Submitted Again**. This indicates that the request was already processed or rejected.<br><br>No further action is needed. If you have questions, please contact Hassan. |
+| **`reject:Bin-Duplicate`** | Simple | **Subject:** Form Submission Rejected – Duplicate Entry Detected<br><br>**Body:**<br>Your form submission for RITM `{RITM}` has been rejected because duplicate entries for this RITM were found. To maintain data integrity, we cannot accept another duplicate.<br><br>If you need to correct information, please update the original submission instead of creating a new one. For assistance, contact Hassan. |
+
+---
+
+
+
+
 /**
  * Searches the output table for a given RITM and decides whether to allow a new submission.
  * @param workbook - The Excel workbook object.
