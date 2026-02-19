@@ -13,6 +13,9 @@
 
 ---
 
+Your form submission for RITM {RITM} has been rejected because a duplicate or previously processed entry was detected.
+
+If you need assistance, please contact Hasan.
 
 
 /**
