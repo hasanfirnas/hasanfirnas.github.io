@@ -15,24 +15,24 @@
 
 
 
-
 /**
  * Searches the output table for a given RITM and decides whether to allow a new submission.
+ * Returns "pass:new" if allowed, otherwise "reject:<reason>".
  * @param workbook - The Excel workbook object.
  * @param ritmInput - The RITM ID to search for (user will be prompted).
  */
 
 // ====================
-// CONFIGURATION – Update these values as needed
+// CONFIGURATION
 // ====================
 const OUTPUT_SHEET = "Output";
 const OUTPUT_TABLE = "OuputTable";
 
-function main(workbook: ExcelScript.Workbook, ritmInput: string): void {
+function main(workbook: ExcelScript.Workbook, ritmInput: string): string {
   // Validate input
   if (!ritmInput || ritmInput.trim() === "") {
     console.log("Error: No RITM ID provided.");
-    return;
+    return "error:no_input";
   }
   const searchRitm: string = ritmInput.trim();
 
@@ -40,14 +40,14 @@ function main(workbook: ExcelScript.Workbook, ritmInput: string): void {
   const sheet: ExcelScript.Worksheet = workbook.getWorksheet(OUTPUT_SHEET);
   if (!sheet) {
     console.log(`Error: Worksheet "${OUTPUT_SHEET}" not found.`);
-    return;
+    return `error:sheet_not_found`;
   }
 
   // Get the output table
   const table: ExcelScript.Table = sheet.getTable(OUTPUT_TABLE);
   if (!table) {
     console.log(`Error: Table "${OUTPUT_TABLE}" not found in sheet "${OUTPUT_SHEET}".`);
-    return;
+    return `error:table_not_found`;
   }
 
   // Get headers
@@ -61,7 +61,7 @@ function main(workbook: ExcelScript.Workbook, ritmInput: string): void {
   // Validate critical columns
   if (ritmColIndex === -1) {
     console.log("Error: No column with header starting with 'RITM' found.");
-    return;
+    return "error:ritm_column_missing";
   }
   if (cmdbStatusColIndex === -1) {
     console.log("Warning: 'CMDB Status' column not found; status will be shown as 'N/A'.");
@@ -96,11 +96,11 @@ function main(workbook: ExcelScript.Workbook, ritmInput: string): void {
 
   // If no matches, it's a new RITM
   if (matches.length === 0) {
-    console.log("pass:new");
-    return;
+    console.log("No existing entries found.");
+    return "pass:new";
   }
 
-  // Log all matches for inspection
+  // Log all matches for inspection (these will appear in Power Automate logs)
   console.log(`Found ${matches.length} occurrence(s) of RITM ${searchRitm}:`);
   matches.forEach((match, index) => {
     console.log(`[${index + 1}] RITM: ${match.ritm}, Id: ${match.id}, CMDB Status: ${match.status}`);
@@ -130,10 +130,10 @@ function main(workbook: ExcelScript.Workbook, ritmInput: string): void {
     }
   }
 
-  // Output final decision
+  // Return final decision
   if (highestPriority > 0) {
-    console.log(`reject:${reason}`);
+    return `reject:${reason}`;
   } else {
-    console.log("pass:new");
+    return "pass:new";
   }
 }
