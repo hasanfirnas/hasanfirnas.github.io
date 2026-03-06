@@ -1,0 +1,1178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Hasan Firnas I</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,400&family=Space+Grotesk:wght@400;500;600;700;800&family=Share+Tech+Mono&family=Bebas+Neue&display=swap" rel="stylesheet"/>
+<style>
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   DESIGN TOKENS
+   ─ Change --a / --a2 to shift the entire site accent colour
+   ─ Change --bg to shift the page background
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+:root{
+  --a:#1e4d8c; --a2:#3a6db5; --a3:rgba(30,77,140,.12);
+  --bg:#dfe6f5; --card:rgba(255,255,255,.76); --card2:rgba(248,251,255,.88);
+  --tx:#141928; --mu:#4a5568;
+  --br:rgba(30,77,140,.14); --pl:rgba(30,77,140,.09); --pt:#1e4d8c;
+  --sh:0 12px 50px rgba(30,77,140,.18); --blr:blur(24px);
+  --f:'Space Grotesk','Inter',sans-serif; --mo:'Share Tech Mono',monospace;
+}
+body.dark{
+  --a:#5b9bd5; --a2:#7ab8f5; --a3:rgba(91,155,213,.13);
+  --bg:#0b0f1a; --card:rgba(16,22,40,.82); --card2:rgba(12,18,32,.9);
+  --tx:#e2e9f8; --mu:#7e91b0;
+  --br:rgba(91,155,213,.14); --pl:rgba(91,155,213,.13); --pt:#7ab8f5;
+  --sh:0 12px 50px rgba(0,0,0,.55);
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   SPIDER-PUNK PALETTE
+   ─ Primary   : #FFE500  (electric yellow)
+   ─ Secondary : #E8175D  (hot magenta  – only used for borders/accents)
+   ─ Tertiary  : #FF5500  (orange-red)
+   ─ Quad      : #FF9500  (amber)
+   ─ To change the palette swap the four hex values below
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+body.punk{
+  --a:#FFE500; --a2:#FF5500; --a3:rgba(255,229,0,.1);
+  --bg:#050505; --card:rgba(10,10,10,.92); --card2:rgba(6,6,6,.96);
+  --tx:#F2EFD0; --mu:#C0B878; /* ← brightened muted so content is readable */
+  --br:rgba(255,229,0,.22); --pl:rgba(255,229,0,.09); --pt:#FFE500;
+  --sh:0 0 40px rgba(255,229,0,.15);
+  --f:'Share Tech Mono',monospace;
+}
+
+/* ━━━━━━━━ RESET ━━━━━━━━ */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden}
+body{
+  font-family:var(--f); background:var(--bg); color:var(--tx); cursor:none;
+  /* Smooth light↔dark crossfade — no flash */
+  transition:background-color .7s ease,color .5s ease;
+}
+body *{transition:background-color .45s ease,border-color .45s ease,color .35s ease,box-shadow .45s ease}
+body .cdot,body .cring,body .slide,body .slide *{transition:none!important}
+body a,body button{transition:background .2s ease,color .2s ease,border-color .2s ease,transform .15s ease,box-shadow .2s ease!important}
+a{color:inherit;text-decoration:none} ul{list-style:none} img{display:block}
+
+/* Punk CRT scanlines */
+body.punk::after{
+  content:''; position:fixed; inset:0; z-index:9990; pointer-events:none;
+  /* ↓ SCANLINE OPACITY: change the last number (0.08) to darken/lighten the scan lines */
+  background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,.08) 3px,rgba(0,0,0,.08) 4px);
+}
+
+/* ━━━━━━━━ CURSOR ━━━━━━━━ */
+.cdot{
+  position:fixed; width:8px; height:8px; background:var(--a); border-radius:50%;
+  pointer-events:none; z-index:10000; transform:translate(-50%,-50%);
+  transition:transform .15s,background-color .3s,border-radius .2s!important;
+  will-change:left,top;
+}
+.cring{
+  position:fixed; width:36px; height:36px; border:1.5px solid var(--a); border-radius:50%;
+  pointer-events:none; z-index:9999; transform:translate(-50%,-50%); opacity:.5;
+  transition:width .18s,height .18s,border-color .3s,border-radius .2s,opacity .2s!important;
+  will-change:left,top;
+}
+body.punk .cdot{border-radius:0; background:#FFE500; width:10px; height:10px}
+body.punk .cring{border-radius:2px; border-color:#E8175D; transform:translate(-50%,-50%) rotate(45deg)}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   PUNK PARTICLE CANVAS
+   ─ Dot count, speed, and connection distance are tuned in JS below.
+   ─ Search for "TUNING: PARTICLES" in the JS section.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+#punk-canvas{position:fixed;inset:0;z-index:0;display:none;pointer-events:none}
+body.punk #punk-canvas{display:block}
+
+/* ━━━━━━━━ AMBIENT BG (light + dark modes only) ━━━━━━━━ */
+.ambience{position:fixed;inset:0;z-index:0;pointer-events:none;transition:background 1s ease}
+body[data-s="0"] .ambience{background:radial-gradient(ellipse 70% 70% at 20% 20%,rgba(180,205,250,.5),transparent 70%),radial-gradient(ellipse 55% 55% at 80% 80%,rgba(160,195,245,.35),transparent 70%)}
+body[data-s="1"] .ambience{background:radial-gradient(ellipse 70% 70% at 80% 20%,rgba(100,160,255,.4),transparent 70%),radial-gradient(ellipse 50% 50% at 20% 80%,rgba(130,175,245,.3),transparent 70%)}
+body[data-s="2"] .ambience{background:radial-gradient(ellipse 65% 65% at 15% 50%,rgba(90,130,220,.38),transparent 70%),radial-gradient(ellipse 45% 45% at 85% 20%,rgba(120,160,240,.28),transparent 70%)}
+body[data-s="3"] .ambience{background:radial-gradient(ellipse 70% 70% at 50% 80%,rgba(100,80,200,.28),transparent 70%),radial-gradient(ellipse 55% 55% at 80% 30%,rgba(80,120,220,.32),transparent 70%)}
+body[data-s="4"] .ambience{background:radial-gradient(ellipse 65% 65% at 20% 80%,rgba(20,120,150,.32),transparent 70%),radial-gradient(ellipse 55% 55% at 80% 20%,rgba(30,100,180,.28),transparent 70%)}
+body[data-s="5"] .ambience{background:radial-gradient(ellipse 65% 65% at 80% 60%,rgba(30,77,140,.32),transparent 70%),radial-gradient(ellipse 45% 45% at 20% 30%,rgba(60,100,190,.28),transparent 70%)}
+body[data-s="6"] .ambience{background:radial-gradient(ellipse 70% 70% at 50% 50%,rgba(30,77,140,.28),transparent 70%)}
+body.dark[data-s="0"] .ambience{background:radial-gradient(ellipse 70% 70% at 20% 20%,rgba(15,35,80,.65),transparent 70%),radial-gradient(ellipse 55% 55% at 80% 80%,rgba(10,25,60,.45),transparent 70%)}
+body.dark[data-s="1"] .ambience{background:radial-gradient(ellipse 70% 70% at 80% 20%,rgba(20,50,110,.6),transparent 70%),radial-gradient(ellipse 50% 50% at 20% 80%,rgba(15,40,90,.45),transparent 70%)}
+body.dark[data-s="2"] .ambience{background:radial-gradient(ellipse 65% 65% at 15% 50%,rgba(10,40,100,.65),transparent 70%),radial-gradient(ellipse 45% 45% at 85% 20%,rgba(20,50,120,.4),transparent 70%)}
+body.dark[data-s="3"] .ambience{background:radial-gradient(ellipse 70% 70% at 50% 80%,rgba(50,30,130,.48),transparent 70%),radial-gradient(ellipse 55% 55% at 80% 30%,rgba(20,40,110,.4),transparent 70%)}
+body.dark[data-s="4"] .ambience{background:radial-gradient(ellipse 65% 65% at 20% 80%,rgba(0,80,100,.48),transparent 70%),radial-gradient(ellipse 55% 55% at 80% 20%,rgba(10,60,110,.38),transparent 70%)}
+body.dark[data-s="5"] .ambience{background:radial-gradient(ellipse 65% 65% at 80% 60%,rgba(20,50,110,.52),transparent 70%),radial-gradient(ellipse 45% 45% at 20% 30%,rgba(30,70,140,.38),transparent 70%)}
+body.dark[data-s="6"] .ambience{background:radial-gradient(ellipse 70% 70% at 50% 50%,rgba(20,50,130,.42),transparent 70%)}
+body.punk .ambience{display:none}
+
+/* ━━━━━━━━ TOPBAR ━━━━━━━━ */
+.bar{
+  position:fixed;top:0;left:0;right:0;height:56px;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 2rem;z-index:800;
+  background:var(--card);backdrop-filter:var(--blr);-webkit-backdrop-filter:var(--blr);
+  border-bottom:1px solid var(--br);
+}
+.brand{display:flex;align-items:center;gap:.45rem;font-weight:800;font-size:.88rem;color:var(--a)}
+body.punk .brand{letter-spacing:.2em;text-shadow:0 0 14px #FFE500}
+.bar-r{display:flex;align-items:center;gap:.45rem}
+.bico{
+  background:var(--pl);border:1px solid var(--br);color:var(--tx);border-radius:9px;
+  width:37px;height:37px;display:flex;align-items:center;justify-content:center;
+  cursor:none;font-size:.88rem;font-family:inherit;
+}
+.bico:hover{background:var(--a)!important;color:#fff!important;border-color:var(--a)!important}
+.bdl{
+  display:flex;align-items:center;gap:6px;background:var(--a);color:#fff;border:none;
+  border-radius:9px;padding:0 16px;height:37px;font-size:.77rem;font-weight:700;
+  cursor:none;letter-spacing:.03em;font-family:var(--f);text-decoration:none;
+}
+.bdl:hover{background:var(--a2)!important;transform:translateY(-1px)!important}
+body.punk .bdl{background:transparent!important;border:1px solid #FFE500;color:#FFE500}
+body.punk .bdl:hover{background:#FFE500!important;color:#050505!important;box-shadow:0 0 22px #FFE500;transform:none!important}
+
+/* ━━━━━━━━ NAV DOTS ━━━━━━━━ */
+.ndots{position:fixed;right:1.3rem;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:9px;z-index:700}
+.nd{
+  width:7px;height:7px;border-radius:50%;background:var(--br);
+  cursor:none;border:none;padding:0;transition:all .3s!important;position:relative;
+}
+.nd.on{background:var(--a);transform:scale(1.6)}
+.nd::after{
+  content:attr(data-l);position:absolute;right:16px;top:50%;transform:translateY(-50%);
+  font-size:.6rem;font-weight:700;white-space:nowrap;opacity:0;color:var(--a);
+  font-family:var(--f);letter-spacing:.08em;text-transform:uppercase;
+  transition:opacity .2s!important;pointer-events:none;
+}
+.nd:hover::after{opacity:1}
+body.punk .nd{border-radius:0}
+
+/* ━━━━━━━━ SECRET BUTTON (bottom-left) ━━━━━━━━ */
+.secret{
+  position:fixed;bottom:1.4rem;left:1.6rem;z-index:800;cursor:none;
+  width:34px;height:34px;display:flex;align-items:center;justify-content:center;
+  border-radius:50%;background:var(--pl);border:1px solid var(--br);
+  font-size:.9rem;color:var(--mu);
+  transition:opacity .3s,transform .3s,background .2s!important;
+}
+.secret::before{
+  content:'';position:absolute;width:100%;height:100%;border-radius:50%;
+  background:var(--a);opacity:.15;
+  /* ↓ PULSE SPEED: change 2.8s to speed up/slow down the ring pulse */
+  animation:spulse 2.8s ease-out infinite;
+}
+@keyframes spulse{0%{transform:scale(1);opacity:.15}100%{transform:scale(2.5);opacity:0}}
+.secret:hover{transform:scale(1.15)!important;background:var(--a)!important;color:#fff!important}
+body.punk .secret{background:rgba(255,229,0,.1)!important;border-color:#FFE500;color:#FFE500}
+body.punk .secret::before{background:#FFE500}
+body.punk .secret:hover{background:#FFE500!important;color:#050505!important;box-shadow:0 0 20px #FFE500}
+
+/* ━━━━━━━━ VIEWPORT + SLIDES ━━━━━━━━ */
+#viewport{position:fixed;inset:0;z-index:1;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.slide{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  padding:68px 2rem 1.5rem;opacity:0;pointer-events:none;
+  transform:translateY(60px) scale(.96);
+  /* ↓ SLIDE ENTER SPEED: change .55s */
+  transition:opacity .55s cubic-bezier(.4,0,.2,1),transform .55s cubic-bezier(.4,0,.2,1)!important;
+}
+.slide.active{opacity:1;pointer-events:all;transform:translateY(0) scale(1)}
+.slide.exit-up{
+  opacity:0;pointer-events:none;transform:translateY(-60px) scale(.96);
+  /* ↓ SLIDE EXIT SPEED: change .45s */
+  transition:opacity .45s cubic-bezier(.4,0,.2,1),transform .45s cubic-bezier(.4,0,.2,1)!important;
+}
+.slide.exit-down{
+  opacity:0;pointer-events:none;transform:translateY(60px) scale(.96);
+  transition:opacity .45s cubic-bezier(.4,0,.2,1),transform .45s cubic-bezier(.4,0,.2,1)!important;
+}
+
+/* ━━━━━━━━ GLASS CARD ━━━━━━━━ */
+.card{
+  width:100%;max-width:1050px;
+  background:var(--card);backdrop-filter:var(--blr);-webkit-backdrop-filter:var(--blr);
+  border:1px solid var(--br);border-radius:20px;box-shadow:var(--sh);
+  padding:2rem 2.4rem;position:relative;overflow:hidden;
+}
+.card::before{
+  content:'';position:absolute;inset:0;border-radius:20px;
+  background:linear-gradient(135deg,rgba(255,255,255,.14) 0%,rgba(255,255,255,0) 55%);
+  pointer-events:none;
+}
+.card>*{position:relative;z-index:1}
+body.punk .card{border-radius:0;border-color:rgba(255,229,0,.22);background:rgba(8,8,8,.92)}
+body.punk .card::before{background:linear-gradient(135deg,rgba(255,229,0,.05) 0%,rgba(255,85,0,.03) 100%)}
+.card.scroll{overflow-y:auto;max-height:calc(100vh - 88px)}
+.card.scroll::-webkit-scrollbar{width:4px}
+.card.scroll::-webkit-scrollbar-track{background:transparent}
+.card.scroll::-webkit-scrollbar-thumb{background:var(--br);border-radius:4px}
+
+/* ━━━━━━━━ SECTION HEADING ━━━━━━━━ */
+.sh{margin-bottom:1.4rem}
+.slbl{
+  font-size:.65rem;font-weight:700;letter-spacing:.22em;text-transform:uppercase;
+  color:var(--a);margin-bottom:.35rem;opacity:.7;
+  display:flex;align-items:center;gap:.5rem;
+}
+.slbl::after{content:'';flex:1;height:1px;background:var(--br);max-width:44px}
+.sttl{font-size:clamp(1.5rem,3.2vw,2.2rem);font-weight:800;color:var(--tx);letter-spacing:-.025em;line-height:1.1}
+.ssub{font-size:.84rem;color:var(--mu);margin-top:.35rem;font-family:'Inter',sans-serif}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   PUNK GLITCH ANIMATIONS
+   ─ All timing/frequency values are annotated below.
+   ─ "Xpx" comments mark where you can tighten/loosen the offset.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+/* ── HF big name glitch ──
+   TUNING: MEGAGLITCH
+   ─ Animation duration : 4.5s   ← change to speed up/slow down cycle
+   ─ Delay before first : 1.5s   ← change to make it start sooner
+   ─ Glitch "burst" runs from 80%→89% of the cycle (so ~0.81s of 4.5s)
+   ─ Fonts used: Share Tech Mono → Bebas Neue → Courier New → Times New Roman → Impact → Arial Black
+     (each frame swaps to a different typeface for mixed-character feel)
+*/
+body.punk .h-name{
+  color:#FFE500;font-family:'Share Tech Mono',monospace;
+  text-shadow:0 0 30px #FFE500,0 0 80px rgba(255,229,0,.3);
+  animation:megaglitch 4.5s 1.5s infinite; /* ← duration / delay */
+}
+@keyframes megaglitch{
+  0%,80%,100%{transform:none;font-family:'Share Tech Mono',monospace;text-shadow:0 0 30px #FFE500,0 0 80px rgba(255,229,0,.3);clip-path:none;color:#FFE500}
+  81%{transform:translate(-5px,12px) skewX(-14deg);font-family:'Bebas Neue',sans-serif;text-shadow:-6px 2px #E8175D,6px -2px #FF5500;clip-path:polygon(0 0,100% 0,100% 32%,0 32%);color:#E8175D}
+  82%{transform:translate(8px,-15px) skewX(10deg) scaleY(1.08);font-family:'Courier New',monospace;text-shadow:7px -3px #E8175D,-7px 3px #FF5500;clip-path:polygon(0 60%,100% 60%,100% 100%,0 100%);color:#FFE500}
+  83%{transform:translate(-4px,6px) skewY(3deg);font-family:'Times New Roman',serif;text-shadow:-5px 0 #FF5500,5px 0 #E8175D;clip-path:polygon(0 30%,100% 30%,100% 68%,0 68%);color:#FF5500}
+  84%{transform:translate(6px,-8px) scaleX(1.06);font-family:'Impact',sans-serif;text-shadow:5px 2px #E8175D,-5px -2px #FFE500;clip-path:none;color:#FFE500}
+  85%{transform:none;font-family:'Share Tech Mono',monospace;text-shadow:0 0 30px #FFE500;clip-path:none;color:#FFE500}
+  86%{transform:translate(-9px,0) skewX(-18deg);font-family:'Arial Black',sans-serif;text-shadow:-8px 0 #E8175D,8px 0 #FF5500;clip-path:polygon(0 0,100% 0,100% 45%,0 45%);color:#E8175D}
+  87%{transform:translate(9px,3px) skewX(12deg) scaleY(.94);font-family:'Courier New',monospace;text-shadow:8px -2px #FF5500;clip-path:polygon(0 55%,100% 55%,100% 100%,0 100%);color:#FFE500}
+  88%{transform:translate(-3px,-5px);font-family:'Share Tech Mono',monospace;text-shadow:0 0 30px #FFE500,0 0 80px rgba(255,229,0,.3);clip-path:none;color:#FFE500}
+  89%{transform:none}
+}
+
+/* ── Full name (Hasan Firnas I) — snap glitch, NO colour-split offset ──
+   TUNING: NAMESNAP
+   ─ Duration : 5s   ─ Delay : 2s
+   ─ No text-shadow offset = no RGB ghost/split effect
+   ─ Only transform + font swap + colour snap
+*/
+body.punk .h-fullname{
+  color:#E8175D;font-family:'Share Tech Mono',monospace;letter-spacing:.12em;
+  animation:namesnap 5s 2s infinite; /* ← duration / delay */
+}
+@keyframes namesnap{
+  0%,88%,100%{transform:none;font-family:'Share Tech Mono',monospace;color:#E8175D;clip-path:none}
+  89%{transform:translate(-3px,0) skewX(-10deg);font-family:'Bebas Neue',sans-serif;color:#FFE500;clip-path:polygon(0 0,100% 0,100% 50%,0 50%)}
+  90%{transform:translate(4px,0) scaleX(1.05);font-family:'Courier New',monospace;color:#FF5500;clip-path:polygon(0 50%,100% 50%,100% 100%,0 100%)}
+  91%{transform:translate(-2px,0) skewX(6deg);font-family:'Impact',sans-serif;color:#FFE500;clip-path:none}
+  92%{transform:none;font-family:'Share Tech Mono',monospace;color:#E8175D}
+}
+
+/* ── Section headings (.sttl) + Experience job titles (.xt) — HF-style glitch ──
+   TUNING: HEADGLITCH
+   ─ Duration : 6s   ─ Delay : 3s
+   ─ Burst runs 85%→92% (about 0.42s per cycle)
+   ─ Fonts cycle through 5 distinct families for mixed-character feel
+*/
+body.punk .sttl,
+body.punk .xt{
+  animation:headglitch 6s 3s infinite; /* ← duration / delay */
+}
+/* Stagger delays per slide so they don't all fire at once */
+body.punk #s1 .sttl{animation-delay:3s}
+body.punk #s2 .sttl{animation-delay:3.6s}
+body.punk #s3 .sttl{animation-delay:4.2s}
+body.punk #s4 .sttl{animation-delay:4.8s}
+body.punk #s5 .sttl{animation-delay:5.4s}
+body.punk #s6 .sttl{animation-delay:3.3s}
+/* Experience rows stagger */
+body.punk .xi:nth-child(2) .xt{animation-delay:3.8s}
+body.punk .xi:nth-child(3) .xt{animation-delay:4.6s}
+body.punk .xi:nth-child(4) .xt{animation-delay:5.2s}
+
+@keyframes headglitch{
+  0%,85%,100%{transform:none;font-family:inherit;color:inherit;clip-path:none;text-shadow:none}
+  86%{transform:translate(-3px,8px) skewX(-10deg);font-family:'Bebas Neue',sans-serif;color:#FFE500;clip-path:polygon(0 0,100% 0,100% 40%,0 40%);text-shadow:-3px 0 #E8175D,3px 0 #FF5500}
+  87%{transform:translate(5px,-6px) scaleY(1.06);font-family:'Times New Roman',serif;color:#E8175D;clip-path:polygon(0 55%,100% 55%,100% 100%,0 100%);text-shadow:none}
+  88%{transform:translate(-2px,3px) skewX(8deg);font-family:'Courier New',monospace;color:#FF5500;clip-path:none;text-shadow:none}
+  89%{transform:translate(4px,-4px) scaleX(1.04);font-family:'Impact',sans-serif;color:#FFE500;clip-path:polygon(0 20%,100% 20%,100% 75%,0 75%)}
+  90%{transform:translate(-5px,2px);font-family:'Arial Black',sans-serif;color:#E8175D;clip-path:none}
+  91%{transform:none;font-family:inherit;color:inherit;clip-path:none;text-shadow:none}
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   REVEAL ANIMATIONS (fire when slide becomes .active)
+   ─ Duration .6s on rv/rl/rr, .5s on stagger children
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+.rv{opacity:0;transform:translateY(28px)}
+.rl{opacity:0;transform:translateX(-28px)}
+.rr{opacity:0;transform:translateX(28px)}
+.slide.active .rv{animation:fadeUp .6s ease forwards}
+.slide.active .rl{animation:fadeL  .6s ease forwards}
+.slide.active .rr{animation:fadeR  .6s ease forwards}
+@keyframes fadeUp{to{opacity:1;transform:none}}
+@keyframes fadeL {to{opacity:1;transform:none}}
+@keyframes fadeR {to{opacity:1;transform:none}}
+.sg>*{opacity:0;transform:translateY(22px)}
+.slide.active .sg>*:nth-child(1){animation:fadeUp .5s .05s ease forwards}
+.slide.active .sg>*:nth-child(2){animation:fadeUp .5s .11s ease forwards}
+.slide.active .sg>*:nth-child(3){animation:fadeUp .5s .17s ease forwards}
+.slide.active .sg>*:nth-child(4){animation:fadeUp .5s .23s ease forwards}
+.slide.active .sg>*:nth-child(5){animation:fadeUp .5s .29s ease forwards}
+.slide.active .sg>*:nth-child(6){animation:fadeUp .5s .35s ease forwards}
+.slide.active .sg>*:nth-child(7){animation:fadeUp .5s .41s ease forwards}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━
+   S0: HERO
+━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+#s0{flex-direction:column;text-align:center}
+
+/* Glass card wrapping hero content */
+.hero-card{
+  max-width:720px;width:100%;
+  background:var(--card);backdrop-filter:var(--blr);-webkit-backdrop-filter:var(--blr);
+  border:1px solid var(--br);border-radius:24px;box-shadow:var(--sh);
+  padding:3rem 3.5rem 2.5rem;position:relative;overflow:hidden;
+}
+.hero-card::before{content:'';position:absolute;inset:0;border-radius:24px;background:linear-gradient(135deg,rgba(255,255,255,.18) 0%,rgba(255,255,255,0) 55%);pointer-events:none}
+.hero-card>*{position:relative;z-index:1}
+/* Hero card entrance — scales in on load */
+#s0 .hero-card{opacity:0;transform:scale(.88) translateY(32px)}
+#s0.active .hero-card{animation:heroIn 1s cubic-bezier(.22,1,.36,1) .1s both!important}
+@keyframes heroIn{0%{opacity:0;transform:scale(.88) translateY(32px)}100%{opacity:1;transform:scale(1) translateY(0)}}
+body.punk .hero-card{border-radius:0;border-color:rgba(255,229,0,.28);background:rgba(5,5,5,.94)}
+
+/* HF big name — normal modes */
+.h-name{
+  font-size:clamp(4rem,11vw,9rem);font-weight:900;color:var(--a);
+  line-height:1;letter-spacing:-.045em;margin-bottom:.45rem;
+}
+
+/* Full name below HF — normal modes */
+.h-fullname{
+  font-size:clamp(.95rem,2vw,1.3rem);font-weight:500;color:var(--mu);
+  margin-bottom:.5rem;letter-spacing:.02em;font-family:'Inter',sans-serif;
+}
+/* Punk mode full name styled in headglitch animation above */
+body.punk .h-fullname{font-family:'Share Tech Mono',monospace;font-size:clamp(1rem,2.2vw,1.4rem);font-weight:700}
+
+.h-tag{
+  font-size:clamp(.9rem,1.9vw,1.1rem);color:var(--mu);font-style:italic;
+  margin-bottom:1.35rem;font-family:'Inter',sans-serif;letter-spacing:.01em;
+}
+body.punk .h-tag{color:#C0B878;font-style:normal;font-family:'Share Tech Mono',monospace}
+
+/* ── Hero pills ──
+   PUNK: All pill text is bright/bold so all are readable on black
+   ─ Yellow (default), Orange (#FF5500), Amber (#FF9500)
+   ─ E8175D magenta removed from pill text — too faint at small size
+*/
+.h-pills{display:flex;flex-wrap:wrap;justify-content:center;gap:.4rem;margin-bottom:2rem}
+.hp{font-size:.72rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:6px 15px;border-radius:30px;background:var(--a);color:#fff}
+body.punk .hp{background:transparent;border:1.5px solid #FFE500;color:#FFE500;border-radius:0;font-weight:800}
+body.punk .hp:nth-child(2n){border-color:#FF5500;color:#FF5500}  /* ← bright orange, not pink */
+body.punk .hp:nth-child(3n){border-color:#FF9500;color:#FF9500}  /* ← amber */
+
+.h-btns{display:flex;gap:.9rem;justify-content:center;flex-wrap:wrap}
+.btnp{display:inline-flex;align-items:center;gap:7px;background:var(--a);color:#fff;padding:12px 28px;border-radius:11px;font-weight:700;font-size:.84rem;cursor:none;border:none;font-family:var(--f);text-decoration:none}
+.btnp:hover{background:var(--a2)!important;transform:translateY(-2px)!important;box-shadow:0 8px 24px var(--a3)!important}
+body.punk .btnp{background:transparent!important;border:1px solid #FFE500;color:#FFE500;border-radius:0}
+body.punk .btnp:hover{background:#FFE500!important;color:#050505!important;box-shadow:0 0 28px #FFE500!important;transform:none!important}
+.btng{display:inline-flex;align-items:center;gap:7px;background:transparent;color:var(--tx);padding:12px 28px;border-radius:11px;font-weight:700;font-size:.84rem;cursor:none;border:1px solid var(--br);font-family:var(--f)}
+.btng:hover{background:var(--card2)!important;transform:translateY(-2px)!important}
+body.punk .btng{border-color:#FF5500;color:#FF5500;border-radius:0}  /* ← orange not pink */
+body.punk .btng:hover{background:#FF5500!important;color:#fff!important;box-shadow:0 0 28px #FF5500!important;transform:none!important}
+
+.down-btn{
+  margin-top:1.8rem;display:flex;flex-direction:column;align-items:center;gap:.3rem;
+  opacity:.4;font-size:.62rem;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--mu);cursor:none;background:none;border:none;font-family:var(--f);
+}
+.down-btn:hover{opacity:.75!important}
+/* ↓ BOUNCE SPEED: change 2s */
+.dn-ico{animation:bnc 2s infinite;font-size:.9rem}
+@keyframes bnc{0%,100%{transform:translateY(0)}50%{transform:translateY(7px)}}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━
+   S1: ABOUT
+━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+#s1 .ag{display:grid;grid-template-columns:200px 1fr;gap:2.2rem;align-items:center}
+.av-w{position:relative;display:flex;flex-direction:column;align-items:center}
+.av{width:165px;height:165px;border-radius:16px;object-fit:cover;border:2px solid var(--br);background:var(--card2);box-shadow:var(--sh)}
+body.punk .av{border-color:#FFE500;box-shadow:0 0 26px rgba(255,229,0,.2);border-radius:0}
+.av-ring{position:absolute;inset:-8px;border:1.5px dashed var(--a2);border-radius:20px;opacity:.28;animation:spin 20s linear infinite}
+body.punk .av-ring{border-radius:0;border-color:#FF5500;opacity:.4}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── Avatar image glitch (punk) ──
+   TUNING: IMGGLITCH
+   ─ Duration: 12s, Delay: 4s → long calm, short burst
+   ─ Burst runs 91%→97% = ~0.72s of 12s
+   ─ translate values: -10px / +12px → change for wider/narrower jump
+*/
+body.punk .av{animation:imgglitch 12s 4s ease-in-out infinite} /* ← duration / delay */
+@keyframes imgglitch{
+  0%,91%,100%{filter:none;transform:none}
+  92%{transform:translate(-10px,2px);filter:hue-rotate(160deg) saturate(2.5)}     /* ← -10px = left shift size */
+  93%{transform:translate(12px,-3px);filter:hue-rotate(300deg) saturate(4) contrast(1.4)} /* ← +12px = right shift size */
+  94%{transform:translate(-7px,1px);filter:none}
+  95%{transform:translate(9px,-1px);filter:hue-rotate(60deg) saturate(3)}
+  96%{transform:translate(-4px,2px);filter:none}
+  97%{transform:none;filter:none}
+}
+
+.ab-sum{font-size:.84rem;color:var(--mu);line-height:1.85;border-left:3px solid var(--a);padding-left:.9rem;margin-bottom:1.3rem;font-family:'Inter',sans-serif}
+body.punk .ab-sum{border-color:#FFE500;color:#C0B878}
+
+/* About pills — PUNK: bright orange/amber instead of faint pink */
+.ab-pills{display:flex;flex-wrap:wrap;gap:.32rem;margin-bottom:1.3rem}
+.pll{background:var(--pl);color:var(--pt);font-size:.72rem;font-weight:600;padding:4px 12px;border-radius:20px;border:1px solid var(--br);letter-spacing:.04em;text-transform:uppercase}
+body.punk .pll{background:transparent;border-radius:0;border-color:#FFE500;color:#FFE500;border-width:1.5px;font-weight:700}
+body.punk .pll:nth-child(2n){border-color:#FF5500;color:#FF5500}  /* ← orange */
+body.punk .pll:nth-child(3n){border-color:#FF9500;color:#FF9500}  /* ← amber */
+
+.ab-lnks{display:flex;flex-wrap:wrap;gap:.55rem}
+.slnk{display:inline-flex;align-items:center;gap:.42rem;font-size:.78rem;font-weight:500;padding:7px 13px;border-radius:9px;border:1px solid var(--br);background:var(--card2);color:var(--tx)}
+.slnk i{color:var(--a);font-size:.85rem}
+.slnk:hover{border-color:var(--a)!important;color:var(--a)!important;transform:translateY(-1px)!important}
+body.punk .slnk{border-radius:0;background:transparent}
+body.punk .slnk i{color:#FFE500}
+body.punk .slnk:hover{border-color:#FFE500!important;color:#FFE500!important;box-shadow:0 0 12px rgba(255,229,0,.2)!important;transform:none!important}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   S2: EXPERIENCE — TIMELINE
+   ─ The vertical line is drawn by .xdotcol::after on each item.
+   ─ The LAST item (.xi:last-child) has this hidden → line stops at last dot.
+   ─ No line runs past Bug Bounty Hunter Intern.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+.xwrap{position:relative}
+/* Column: 32px dot col  |  1rem gap  |  1fr card */
+.xi{display:grid;grid-template-columns:32px 1fr;gap:0 1rem;margin-bottom:1.1rem}
+.xi:last-child{margin-bottom:0}
+.xdotcol{
+  display:flex;justify-content:center;align-items:flex-start;
+  padding-top:.44rem;position:relative;z-index:1;
+}
+/* Line from this dot DOWN to the next dot — hidden on last item */
+.xdotcol::after{
+  content:'';position:absolute;
+  width:1px;
+  top:calc(.44rem + 12px); /* ← start BELOW the dot: padding + dot height */
+  bottom:calc(-1.1rem);    /* ← bridge the .xi margin-bottom to next item */
+  left:50%;transform:translateX(-50%);
+  background:var(--br);z-index:0;
+}
+.xi:last-child .xdotcol::after{display:none} /* ← LINE ENDS AT LAST DOT */
+body.punk .xdotcol::after{background:rgba(255,229,0,.25)}
+
+/* Dot */
+.xdot{width:12px;height:12px;border-radius:50%;background:var(--a);border:2.5px solid var(--bg);flex-shrink:0}
+body.punk .xdot{border-radius:0;background:#FFE500;box-shadow:0 0 10px #FFE500;border-color:var(--bg)}
+
+.xcard{background:var(--card2);border:1px solid var(--br);border-radius:12px;padding:.9rem 1.1rem}
+.xcard:hover{border-color:var(--a)!important}
+body.punk .xcard{border-radius:0;border-color:rgba(255,229,0,.15)}
+body.punk .xcard:hover{border-color:#FFE500!important;box-shadow:0 0 14px rgba(255,229,0,.1)!important}
+
+.xh{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:.3rem;margin-bottom:.1rem}
+.xt{font-size:.86rem;font-weight:700;color:var(--tx)}
+/* headglitch animation applied to .xt in punk mode — see HEADGLITCH above */
+
+/* Experience dates — PUNK: use bright yellow so visible on black */
+.xd{font-size:.7rem;font-weight:700;background:var(--pl);color:var(--pt);padding:3px 9px;border-radius:8px;border:1px solid var(--br);white-space:nowrap}
+body.punk .xd{border-radius:0;background:transparent;border-color:#FFE500;color:#FFE500} /* ← was E8175D, now bright yellow */
+
+/* Company names — PUNK: orange-red, much brighter than pink */
+.xco{font-size:.74rem;font-weight:600;color:var(--a2);margin-bottom:.5rem}
+body.punk .xco{color:#FF9500;font-weight:700} /* ← was E8175D, now amber */
+
+/* Experience bullet content — NO glitch on bullets, content stays clean */
+.xb li{font-size:.86rem;color:var(--mu);margin-bottom:.28rem;line-height:1.7;display:flex;gap:.5rem;align-items:flex-start;font-family:'Inter',sans-serif}
+.xb li::before{content:'▸';color:var(--a);font-size:.65rem;flex-shrink:0;margin-top:.22rem}
+body.punk .xb li::before{color:#FFE500}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━
+   S3: SKILLS
+━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+.sg2{display:grid;grid-template-columns:repeat(2,1fr);gap:.9rem}
+.skc{background:var(--card2);border:1px solid var(--br);border-radius:13px;padding:1.2rem 1.3rem}
+.skc:hover{border-color:var(--a)!important;transform:translateY(-2px)!important;box-shadow:0 6px 22px var(--a3)!important}
+body.punk .skc{border-radius:0;border-color:rgba(255,229,0,.18)}
+body.punk .skc:hover{border-color:#FFE500!important;box-shadow:0 0 18px rgba(255,229,0,.15)!important;transform:none!important}
+/* Icon — display:flex forces Font Awesome icon to render */
+.ski{font-size:1.3rem;color:var(--a);margin-bottom:.65rem;display:flex;align-items:center;min-height:1.5rem}
+body.punk .ski{color:#FFE500;text-shadow:0 0 10px #FFE500}
+.ski i{display:inline-block}
+.sktt{font-size:.84rem;font-weight:700;color:var(--tx);margin-bottom:.48rem}
+.sktgs{display:flex;flex-wrap:wrap;gap:.3rem;margin-top:.4rem}
+/* Skill tags — PUNK: bright yellow/orange text only, no pink */
+.skt{font-size:.72rem;font-weight:600;background:var(--pl);color:var(--pt);padding:3px 10px;border-radius:18px;border:1px solid var(--br)}
+body.punk .skt{background:transparent;border-color:rgba(255,229,0,.35);color:#D4C85A;border-radius:0;font-weight:700} /* ← warm yellow */
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━
+   S4: ACHIEVEMENTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+.ag3{display:grid;grid-template-columns:1fr 1fr;gap:.9rem}
+.acc{background:var(--card2);border:1px solid var(--br);border-radius:13px;padding:1.2rem;display:flex;align-items:flex-start;gap:.85rem}
+.acc:hover{border-color:var(--a)!important;transform:translateY(-2px)!important;box-shadow:0 6px 22px var(--a3)!important}
+.acc.feat{grid-column:1/-1;background:linear-gradient(130deg,var(--a) 0%,var(--a2) 100%);border-color:transparent}
+body.punk .acc.feat{background:rgba(255,229,0,.06)!important;border:1px solid #FFE500}
+.acc.feat:hover{transform:translateY(-2px)!important;box-shadow:0 10px 34px rgba(30,77,140,.28)!important}
+body.punk .acc{border-radius:0;border-color:rgba(255,229,0,.18)}
+body.punk .acc:hover{border-color:#FFE500!important;box-shadow:0 0 16px rgba(255,229,0,.15)!important;transform:none!important}
+.acstat{font-size:2.3rem;font-weight:900;color:rgba(255,255,255,.92);line-height:1;margin-bottom:.15rem;letter-spacing:-.02em}
+body.punk .acstat{color:#FFE500;text-shadow:0 0 20px #FFE500}
+.actt{font-size:.88rem;font-weight:700;color:var(--tx);margin-bottom:.22rem}
+.acc.feat .actt{color:#fff;font-size:1rem}
+body.punk .acc.feat .actt{color:#FFE500}
+.acd{font-size:.8rem;color:var(--mu);line-height:1.65;font-family:'Inter',sans-serif}
+.acc.feat .acd{color:rgba(255,255,255,.82)}
+body.punk .acc.feat .acd{color:#C0B878}
+.acem{font-size:1.6rem;flex-shrink:0;line-height:1}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━
+   S5: CREDENTIALS
+━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+.two{display:grid;grid-template-columns:1fr 1fr;gap:2rem}
+.sublbl{font-size:.62rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--a);margin-bottom:.7rem;opacity:.72}
+.cr{display:flex;justify-content:space-between;align-items:center;padding:.5rem 0;border-bottom:1px solid var(--br);gap:.65rem}
+.cr:last-child{border-bottom:none}
+.cn{font-size:.8rem;color:var(--tx);font-weight:500;font-family:'Inter',sans-serif}
+.cy{font-size:.67rem;font-weight:700;white-space:nowrap;color:var(--a2);background:var(--pl);padding:2px 8px;border-radius:7px;border:1px solid var(--br);flex-shrink:0}
+body.punk .cy{border-radius:0;background:transparent;border-color:#FFE500;color:#FFE500}
+.lr{display:flex;gap:.65rem;padding:.58rem 0;border-bottom:1px solid var(--br);align-items:flex-start}
+.lr:last-child{border-bottom:none}
+.li2{color:var(--a);font-size:.82rem;flex-shrink:0;margin-top:.15rem}
+body.punk .li2{color:#FFE500}
+.lt{font-size:.8rem;color:var(--mu);line-height:1.6;font-family:'Inter',sans-serif}
+.ecds{display:flex;flex-direction:column;gap:.5rem;margin-top:1.2rem}
+.edc{background:var(--card2);border:1px solid var(--br);border-radius:10px;padding:.75rem .95rem}
+.edc:hover{border-color:var(--a)!important}
+body.punk .edc{border-radius:0;border-color:rgba(255,229,0,.18)}
+.edd{font-size:.8rem;font-weight:700;color:var(--tx)}
+.eds{font-size:.72rem;color:var(--mu);margin:.08rem 0;font-family:'Inter',sans-serif}
+.edy{display:inline-block;font-size:.65rem;font-weight:700;background:var(--pl);color:var(--pt);padding:1px 7px;border-radius:7px;border:1px solid var(--br);margin-top:.15rem}
+body.punk .edy{border-radius:0;background:transparent;border-color:#FF9500;color:#FF9500} /* ← amber, not pink */
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━
+   S6: CONTACT
+━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+#s6 .card{max-width:640px;text-align:center}
+.con-attitude{font-size:clamp(.78rem,.8vw,.88rem);color:var(--mu);line-height:1.85;margin-bottom:1.6rem;font-family:'Inter',sans-serif}
+body.punk .con-attitude{color:#C0B878}
+.congrid{display:grid;grid-template-columns:repeat(2,1fr);gap:.8rem;margin-bottom:1.6rem;text-align:left}
+.conc{background:var(--card2);border:1px solid var(--br);border-radius:12px;padding:.88rem 1rem;display:flex;align-items:center;gap:.72rem;cursor:none;text-decoration:none}
+.conc:hover{border-color:var(--a)!important;transform:translateY(-2px)!important;box-shadow:0 5px 18px var(--a3)!important}
+body.punk .conc{border-radius:0;border-color:rgba(255,229,0,.18)}
+body.punk .conc:hover{border-color:#FFE500!important;box-shadow:0 0 16px rgba(255,229,0,.18)!important;transform:none!important}
+.coni{font-size:1.1rem;color:var(--a);flex-shrink:0}
+body.punk .coni{color:#FFE500}
+.conlbl{font-size:.65rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--mu)}
+.conv{font-size:.8rem;color:var(--tx);font-weight:600;margin-top:.06rem}
+.foote{font-size:.7rem;color:var(--mu);opacity:.5;font-family:'Inter',sans-serif}
+
+/* ━━━━━━━━ RESPONSIVE ━━━━━━━━ */
+@media(max-width:860px){
+  #s1 .ag{grid-template-columns:1fr;text-align:center;gap:1.6rem}
+  .av-w{align-items:center} .ab-lnks,.ab-pills{justify-content:center}
+  .sg2,.ag3{grid-template-columns:1fr}
+  .two{grid-template-columns:1fr;gap:1.6rem}
+  .congrid{grid-template-columns:1fr}
+  .card{padding:1.5rem 1.3rem} .hero-card{padding:2.2rem 2rem 2rem}
+}
+@media(max-width:600px){
+  .bar{padding:0 1rem} .bdl span{display:none} .ndots{display:none}
+  .slide{padding:62px .9rem 1rem}
+  .av{width:130px;height:130px}
+  .xi{grid-template-columns:28px 1fr}
+  /* ↓ Adjust line left position for smaller dot column */
+  .xdotcol::after{left:50%}
+  .h-name{letter-spacing:-.02em} .hero-card{padding:1.8rem 1.3rem 1.5rem}
+}
+</style>
+</head>
+<body data-s="0">
+
+<!-- Custom cursor elements -->
+<div class="cdot" id="cdot"></div>
+<div class="cring" id="cring"></div>
+
+<!-- Punk particle canvas — only visible in punk mode -->
+<canvas id="punk-canvas"></canvas>
+
+<!-- Ambient gradient blobs — only visible in light/dark mode -->
+<div class="ambience"></div>
+
+<!-- ─────────────────── TOPBAR ─────────────────── -->
+<header class="bar">
+  <div class="brand"><i class="fa-solid fa-shield-halved"></i>&nbsp;Hasan Firnas I</div>
+  <div class="bar-r">
+    <button class="bico" id="tbtn"><i class="fa-solid fa-moon" id="tico"></i></button>
+    <a class="bdl" href="assets/pdf/Hasan_Firnas_Resume.pdf" target="_blank" download>
+      <i class="fa-solid fa-download"></i><span>Resume</span>
+    </a>
+  </div>
+</header>
+
+<!-- Navigation dots (right side) -->
+<nav class="ndots" id="ndots">
+  <button class="nd on" data-i="0" data-l="Home"></button>
+  <button class="nd"    data-i="1" data-l="About"></button>
+  <button class="nd"    data-i="2" data-l="Experience"></button>
+  <button class="nd"    data-i="3" data-l="Skills"></button>
+  <button class="nd"    data-i="4" data-l="Achievements"></button>
+  <button class="nd"    data-i="5" data-l="Credentials"></button>
+  <button class="nd"    data-i="6" data-l="Contact"></button>
+</nav>
+
+<!-- Secret button (bottom-left) — pulsing, no label, activates punk mode -->
+<button class="secret" id="secbtn" aria-label="">
+  <i class="fa-solid fa-diamond" style="font-size:.65rem"></i>
+</button>
+
+<!-- ─────────────────── SLIDE VIEWPORT ─────────────────── -->
+<div id="viewport">
+
+  <!-- ══ S0: HERO ══ -->
+  <section class="slide active" id="s0" data-i="0">
+    <div class="hero-card">
+      <!-- h-eye REMOVED as requested — "Hasan Firnas I · Chennai, India" is gone -->
+
+      <!-- Big initials -->
+      <h1 class="h-name">HF.</h1>
+
+      <!-- Full name — glitches in punk mode via namesnap animation (no split) -->
+      <p class="h-fullname">Hasan Firnas I</p>
+
+      <!-- Tagline -->
+      <p class="h-tag">A technophile finding a lazy way to get things done.</p>
+
+      <!-- Role pills -->
+      <div class="h-pills">
+        <span class="hp">Risk &amp; Compliance</span>
+        <span class="hp">Automation</span>
+        <span class="hp">Digital Forensics</span>
+        <span class="hp">CEH</span>
+        <span class="hp">CTF Player</span>
+      </div>
+
+      <!-- CTA buttons -->
+      <div class="h-btns">
+        <button class="btnp" id="explore-btn">Explore &rarr;</button>
+        <a class="btng" href="assets/pdf/HasanFirnas_Resume.pdf" download>
+          <i class="fa-solid fa-download" style="font-size:.76rem"></i> Download CV
+        </a>
+      </div>
+    </div>
+
+    <!-- Scroll hint — also acts as next-slide button -->
+    <button class="down-btn" id="down-btn">
+      <span>Scroll</span>
+      <i class="fa-solid fa-chevron-down dn-ico"></i>
+    </button>
+  </section>
+
+  <!-- ══ S1: ABOUT ══ -->
+  <section class="slide" id="s1" data-i="1">
+    <div class="card">
+      <!-- Heading glitches in punk mode via headglitch animation -->
+      <div class="sh rv">
+        <p class="slbl">Who I am</p>
+        <h2 class="sttl">Senior Security Analyst.</h2>
+        <p class="ssub">Synchrony Financial &nbsp;·&nbsp; Jun 2024 – Present</p>
+      </div>
+      <div class="ag">
+        <div class="av-w rl">
+          <!-- Avatar glitches with translate+filter in punk mode via imgglitch animation -->
+          <img class="av" src="assets/img/Hasan_Firnas.jpg" alt="Hasan Firnas I" onerror="this.style.opacity='0'"/>
+          <div class="av-ring"></div>
+        </div>
+        <div class="rr">
+          <!-- Bio — no glitch on content text -->
+          <p class="ab-sum">Senior Security Analyst specialising in PCI DSS compliance and cybersecurity risk, with a foundation rooted in ethical hacking and digital forensics. Supports risk-based assessments across PCI DSS, HIPAA, and SWIFT frameworks, focusing on evidence validation and audit readiness. Known for spotting gaps in existing processes and engineering automation workflows that eliminate manual overhead — whether optimising what exists or building something entirely new.</p>
+          <!-- Pills — punk: all bright colours, no faint pink -->
+          <div class="ab-pills sg">
+            <span class="pll">PCI DSS 4.0.1</span>
+            <span class="pll">HIPAA</span>
+            <span class="pll">SWIFT</span>
+            <span class="pll">Python</span>
+            <span class="pll">Power Automate</span>
+            <span class="pll">Digital Forensics</span>
+            <span class="pll">Splunk</span>
+          </div>
+          <!-- Social links -->
+          <div class="ab-lnks sg">
+            <a class="slnk" href="https://linkedin.com/in/Hasan-Firnas" target="_blank"><i class="fa-brands fa-linkedin"></i>LinkedIn</a>
+            <a class="slnk" href="https://github.com/Hasanfirnas" target="_blank"><i class="fa-brands fa-github"></i>GitHub</a>
+            <a class="slnk" href="https://tryhackme.com/p/HasanFirnas" target="_blank"><i class="fa-solid fa-terminal"></i>TryHackMe</a>
+            <a class="slnk" href="https://instagram.com/_0xhasan_" target="_blank"><i class="fa-brands fa-instagram"></i>Instagram</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ S2: EXPERIENCE ══ -->
+  <section class="slide" id="s2" data-i="2">
+    <div class="card scroll">
+      <!-- Heading glitches in punk mode -->
+      <div class="sh rv">
+        <p class="slbl">Career</p>
+        <h2 class="sttl">Experience.</h2>
+      </div>
+      <div class="xwrap sg">
+
+        <!-- Each .xdotcol::after draws the line DOWN to the next item.
+             The last .xi has display:none on ::after so line stops here. -->
+
+        <div class="xi">
+          <div class="xdotcol"><div class="xdot"></div></div>
+          <div class="xcard">
+            <!-- Full .xt heading glitches in punk mode — no glitch on bullets below -->
+            <div class="xh">
+              <span class="xt">Senior Security Analyst — IS PCI &amp; Compliance</span>
+              <span class="xd">Jun 2024 – Present</span>
+            </div>
+            <div class="xco">Synchrony Financial</div>
+            <ul class="xb">
+              <li>Supports end-to-end PCI DSS 4.0.1 compliance assessments covering evidence validation, application reviews, and audit readiness.</li>
+              <li>Built Power Automate + Python automation workflows reducing manual effort by 60–70%, saving ~50 hours monthly.</li>
+              <li>Manages RITM review operations via ServiceNow ensuring accurate classification and audit-ready documentation.</li>
+              <li>Coordinates SWIFT Assessment evidence; partnered with Governance, SOX &amp; DR teams on tailored automation solutions.</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="xi">
+          <div class="xdotcol"><div class="xdot"></div></div>
+          <div class="xcard">
+            <div class="xh">
+              <span class="xt">Security Analyst — Risk Management</span>
+              <span class="xd">Apr 2023 – Jun 2024</span>
+            </div>
+            <div class="xco">Synchrony Financial</div>
+            <ul class="xb">
+              <li>Supported PCI DSS compliance assessments: application reviews, evidence collection, and audit documentation.</li>
+              <li>Managed application onboarding reviews in ServiceNow, evaluating data elements to determine PCI scope.</li>
+              <li>Assisted in HIPAA assessment activities; contributed to internal PCI portal enhancements.</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="xi">
+          <div class="xdotcol"><div class="xdot"></div></div>
+          <div class="xcard">
+            <div class="xh">
+              <span class="xt">Security Analyst Intern — Detection &amp; Response</span>
+              <span class="xd">Feb 2022 – Apr 2023</span>
+            </div>
+            <div class="xco">Synchrony Financial</div>
+            <ul class="xb">
+              <li>Hands-on exposure to corporate SOC workflows within a large financial institution.</li>
+              <li>Wrote Splunk queries for log analysis and security event investigation.</li>
+              <li>Built proof-of-concept for Synapse — Python-based CTI platform to detect malware and trigger Splunk alerts.</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- LAST item — .xdotcol::after is display:none here, so line STOPS at this dot -->
+        <div class="xi">
+          <div class="xdotcol"><div class="xdot"></div></div>
+          <div class="xcard">
+            <div class="xh">
+              <span class="xt">Bug Bounty Hunter Intern</span>
+              <span class="xd">Aug 2021 – Dec 2021</span>
+            </div>
+            <div class="xco">Ersegment</div>
+            <ul class="xb">
+              <li>Web application scanning and manual vulnerability assessments on government and e-commerce platforms.</li>
+              <li>Reported vulnerabilities acknowledged by target organisations.</li>
+            </ul>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ S3: SKILLS ══ -->
+  <section class="slide" id="s3" data-i="3">
+    <div class="card">
+      <div class="sh rv">
+        <p class="slbl">Toolkit</p>
+        <h2 class="sttl">Skills.</h2>
+      </div>
+      <div class="sg2 sg">
+        <div class="skc">
+          <!-- fa-solid fa-shield-halved — explicitly using inline-block to guarantee render -->
+          <div class="ski"><i class="fa-solid fa-shield-halved"></i></div>
+          <div class="sktt">Compliance &amp; Risk Management</div>
+          <div class="sktgs">
+            <span class="skt">PCI DSS</span><span class="skt">HIPAA</span><span class="skt">SWIFT</span>
+            <span class="skt">CMDB Risk</span><span class="skt">Control Validation</span>
+            <span class="skt">Audit Docs</span><span class="skt">Evidence Collection</span>
+          </div>
+        </div>
+        <div class="skc">
+          <div class="ski"><i class="fa-solid fa-robot"></i></div>
+          <div class="sktt">Process &amp; Automation</div>
+          <div class="sktgs">
+            <span class="skt">Python</span><span class="skt">Bash</span><span class="skt">Power Automate</span>
+            <span class="skt">ServiceNow</span><span class="skt">Gap Analysis</span><span class="skt">Microsoft 365</span>
+          </div>
+        </div>
+        <div class="skc">
+          <div class="ski"><i class="fa-solid fa-magnifying-glass-chart"></i></div>
+          <div class="sktt">Security Operations</div>
+          <div class="sktgs">
+            <span class="skt">Splunk</span><span class="skt">Threat Intelligence</span>
+            <span class="skt">Digital Forensics</span><span class="skt">Vuln Assessment</span><span class="skt">Network Security</span>
+          </div>
+        </div>
+        <div class="skc">
+          <div class="ski"><i class="fa-solid fa-terminal"></i></div>
+          <div class="sktt">Penetration Testing</div>
+          <div class="sktgs">
+            <span class="skt">Burp Suite</span><span class="skt">Nmap</span>
+            <span class="skt">Metasploit</span><span class="skt">Wireshark</span><span class="skt">Kali Linux</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ S4: ACHIEVEMENTS ══ -->
+  <section class="slide" id="s4" data-i="4">
+    <div class="card">
+      <div class="sh rv">
+        <p class="slbl">Highlights</p>
+        <h2 class="sttl">Achievements.</h2>
+      </div>
+      <div class="ag3 sg">
+        <div class="acc feat">
+          <div>
+            <div class="acstat">22,000+</div>
+            <div class="actt">TryHackMe Room Creator</div>
+            <div class="acd">Designed and published the "Disk Analysis &amp; Autopsy" room — a hands-on digital forensics challenge completed by over 22,000 learners worldwide, contributing an active learning resource to the global cybersecurity community.</div>
+          </div>
+          <div style="font-size:2.8rem;flex-shrink:0;align-self:center">🎓</div>
+        </div>
+        <div class="acc"><div class="acem">🥇</div><div><div class="actt">1st Place — VIT Chennai CTF</div><div class="acd">First place in the CTF event hosted by VIT Chennai.</div></div></div>
+        <div class="acc"><div class="acem">🥈</div><div><div class="actt">2nd Place — InCTF Nationals 2021</div><div class="acd">Second place at InCTF Nationals 2021.</div></div></div>
+        <div class="acc"><div class="acem">🥉</div><div><div class="actt">3rd Place — Aurora 2.0 CTF</div><div class="acd">Delhi Technological University.</div></div></div>
+        <div class="acc"><div class="acem">🏅</div><div><div class="actt">4th Place — AppSec Hackathon</div><div class="acd">The Great AppSec Hackathon.</div></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ S5: CREDENTIALS ══ -->
+  <section class="slide" id="s5" data-i="5">
+    <div class="card scroll">
+      <div class="sh rv">
+        <p class="slbl">Credentials</p>
+        <h2 class="sttl">Certificates &amp; More.</h2>
+      </div>
+      <div class="two">
+        <div class="rl">
+          <p class="sublbl">Certificates</p>
+          <div class="sg">
+            <div class="cr"><span class="cn">Certified Ethical Hacker Practical — EC-Council</span><span class="cy">Nov 2022</span></div>
+            <div class="cr"><span class="cn">Certified AppSec Practitioner (CAP) — SecOps Group</span><span class="cy">Jan 2023</span></div>
+            <div class="cr"><span class="cn">Digital Forensics Essentials (DFE) — CodeRED</span><span class="cy">Feb 2022</span></div>
+            <div class="cr"><span class="cn">Complete Digital Forensics Masterclass — Udemy</span><span class="cy">Jul 2021</span></div>
+            <div class="cr"><span class="cn">NDG Linux Essentials — Cisco Networking Academy</span><span class="cy">Jul 2021</span></div>
+            <div class="cr"><span class="cn">Programming with Python for Data Sciences — NIIT</span><span class="cy">Oct 2019</span></div>
+          </div>
+          <p class="sublbl" style="margin-top:1.3rem">Leadership &amp; Volunteering</p>
+          <div class="sg">
+            <div class="lr"><i class="fa-solid fa-users li2"></i><span class="lt">Led the OWASP Sathyabama Student Chapter, organising cybersecurity awareness activities and community engagement initiatives.</span></div>
+            <div class="lr"><i class="fa-solid fa-hand-holding-heart li2"></i><span class="lt">Volunteered at cybersecurity events including Rootsectak and OWASP Chennai.</span></div>
+          </div>
+        </div>
+        <div class="rr">
+          <p class="sublbl">Education</p>
+          <div class="ecds sg">
+            <div class="edc"><div class="edd">B.E — Computer Science Engineering</div><div class="eds">Sathyabama Institute of Science &amp; Technology</div><span class="edy">2019 – 2023</span></div>
+            <div class="edc"><div class="edd">12th — Computer Science &amp; Maths</div><div class="eds">Seventh Day Adventist School (TN State Board)</div><span class="edy">2018 – 2019</span></div>
+            <div class="edc"><div class="edd">10th — ICSE</div><div class="eds">Seventh Day Adventist School</div><span class="edy">2016 – 2017</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ S6: CONTACT ══ -->
+  <section class="slide" id="s6" data-i="6">
+    <div class="card rv">
+      <div class="sh" style="text-align:center">
+        <p class="slbl" style="justify-content:center">You made it to the end</p>
+        <h2 class="sttl">Why are you still here?</h2>
+      </div>
+      <p class="con-attitude rv">
+        Not selling anything. Not consulting. Not available for hire right now?<br/>
+        If you want to connect, nerd out about security, or just say something — I'm around.
+      </p>
+      <div class="congrid sg">
+        <a class="conc" href="mailto:Hasanfirnas242@gmail.com"><i class="fa-solid fa-envelope coni"></i><div><div class="conlbl">Email</div><div class="conv">Hasanfirnas242@gmail.com</div></div></a>
+        <a class="conc" href="https://linkedin.com/in/Hasan-Firnas" target="_blank"><i class="fa-brands fa-linkedin coni"></i><div><div class="conlbl">LinkedIn</div><div class="conv">@Hasan-Firnas</div></div></a>
+        <a class="conc" href="https://github.com/Hasanfirnas" target="_blank"><i class="fa-brands fa-github coni"></i><div><div class="conlbl">GitHub</div><div class="conv">@Hasanfirnas</div></div></a>
+        <a class="conc" href="https://tryhackme.com/p/HasanFirnas" target="_blank"><i class="fa-solid fa-terminal coni"></i><div><div class="conlbl">TryHackMe</div><div class="conv">@Hasanfirnas</div></div></a>
+      </div>
+      <p class="foote rv">Built by Hasan Firnas I · Chennai · 2025</p>
+    </div>
+  </section>
+
+</div><!-- /viewport -->
+
+<script>
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   CURSOR
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+const cdot=document.getElementById('cdot'),cring=document.getElementById('cring');
+let mx=0,my=0,rx=0,ry=0;
+document.addEventListener('mousemove',e=>{mx=e.clientX;my=e.clientY;cdot.style.left=mx+'px';cdot.style.top=my+'px'});
+/* ↓ CURSOR RING LAG: .1 = slow follow, .25 = snappier */
+(function ani(){rx+=(mx-rx)*.1;ry+=(my-ry)*.1;cring.style.left=rx+'px';cring.style.top=ry+'px';requestAnimationFrame(ani)})();
+document.querySelectorAll('a,button').forEach(el=>{
+  el.addEventListener('mouseenter',()=>{cdot.style.transform='translate(-50%,-50%) scale(2.2)';cring.style.width='52px';cring.style.height='52px';cring.style.opacity='.28'});
+  el.addEventListener('mouseleave',()=>{cdot.style.transform='translate(-50%,-50%) scale(1)';cring.style.width='36px';cring.style.height='36px';cring.style.opacity='.5'});
+});
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   TUNING: PARTICLES
+   ─ DOT COUNT    : controlled by initParticles()
+       Currently: Math.min(MAX_DOTS, floor(W×H / AREA_PER_DOT))
+       ↓ INCREASE DOTS: lower AREA_PER_DOT (e.g. 12000 → ~50% more dots)
+       ↓ INCREASE CAP:  raise MAX_DOTS (e.g. 120 or 150)
+       ⚠  Performance: >150 dots may lag on older machines
+   ─ DOT SPEED    : change BASE_SPEED (default 0.55 px/frame)
+   ─ DOT SIZE     : change MIN_R / MAX_R
+   ─ CONNECTION   : change CONNECT_DIST (px) — how far dots link
+   ─ MOUSE PULL   : change MOUSE_STRENGTH
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+const MAX_DOTS      = 8000;    /* ← raise to get more dots (cap) */
+const AREA_PER_DOT  = 18000; /* ← lower to get more dots per screen area */
+const BASE_SPEED    = 0.55;  /* ← px/frame base speed */
+const MIN_R         = 1;     /* ← min dot radius px */
+const MAX_R         = 2.5;   /* ← max dot radius px */
+const CONNECT_DIST  = 130;   /* ← max px to draw a connecting line */
+const MOUSE_PULL    = 0.0008;/* ← gravitational pull toward cursor */
+const MOUSE_RADIUS  = 120;   /* ← px radius of mouse influence */
+const DOT_COLORS    = ['#FFE500','#E8175D','#FF5500','#FF9500']; /* ← Spider-Punk palette */
+
+const canvas=document.getElementById('punk-canvas');
+const ctx=canvas.getContext('2d');
+let pts=[],animId=null,punkActive=false;
+
+function resizeCanvas(){canvas.width=innerWidth;canvas.height=innerHeight}
+resizeCanvas();
+window.addEventListener('resize',()=>{resizeCanvas();if(punkActive)initParticles()});
+
+function initParticles(){
+  pts=[];
+  const n=Math.min(MAX_DOTS, Math.floor(innerWidth*innerHeight/AREA_PER_DOT));
+  for(let i=0;i<n;i++){
+    pts.push({
+      x:Math.random()*innerWidth,
+      y:Math.random()*innerHeight,
+      vx:(Math.random()-.5)*BASE_SPEED*2,
+      vy:(Math.random()-.5)*BASE_SPEED*2,
+      r:Math.random()*(MAX_R-MIN_R)+MIN_R,
+      c:DOT_COLORS[Math.floor(Math.random()*DOT_COLORS.length)],
+      gt:0,
+      /* ↓ GLITCH FREQUENCY: gd = frames between glitch bursts.
+            Lower = more frequent. Current range: 150–450 frames */
+      gd:Math.random()*300+150
+    });
+  }
+}
+
+function drawParticles(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  if(!punkActive)return;
+  pts.forEach(p=>{
+    p.x+=p.vx; p.y+=p.vy;
+    if(p.x<0||p.x>canvas.width)p.vx*=-1;
+    if(p.y<0||p.y>canvas.height)p.vy*=-1;
+    /* Mouse attraction */
+    const dx=mx-p.x,dy=my-p.y,dist=Math.sqrt(dx*dx+dy*dy);
+    if(dist<MOUSE_RADIUS){p.vx+=dx*MOUSE_PULL;p.vy+=dy*MOUSE_PULL}
+    /* Per-dot glitch burst */
+    p.gt++;
+    let drawX=p.x,drawY=p.y,drawC=p.c;
+    if(p.gt>p.gd&&p.gt<p.gd+4){
+      drawX+=(Math.random()-.5)*8;
+      drawY+=(Math.random()-.5)*5;
+      drawC=DOT_COLORS[Math.floor(Math.random()*DOT_COLORS.length)];
+    }
+    if(p.gt>p.gd+6){p.gt=0;p.gd=Math.random()*300+150}
+    /* Draw dot */
+    ctx.beginPath();
+    ctx.arc(drawX,drawY,p.r,0,Math.PI*2);
+    ctx.fillStyle=drawC;
+    ctx.fill();
+    /* Draw connections */
+    pts.forEach(q=>{
+      const dx2=p.x-q.x,dy2=p.y-q.y,d2=Math.sqrt(dx2*dx2+dy2*dy2);
+      if(d2<CONNECT_DIST&&d2>0){
+        ctx.beginPath();
+        ctx.moveTo(p.x,p.y);ctx.lineTo(q.x,q.y);
+        ctx.strokeStyle=p.c;
+        ctx.globalAlpha=(1-d2/CONNECT_DIST)*.45;
+        ctx.lineWidth=.6;
+        ctx.stroke();
+        ctx.globalAlpha=1;
+      }
+    });
+  });
+  animId=requestAnimationFrame(drawParticles);
+}
+
+function startParticles(){punkActive=true;initParticles();drawParticles()}
+function stopParticles(){punkActive=false;if(animId)cancelAnimationFrame(animId);ctx.clearRect(0,0,canvas.width,canvas.height)}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   SLIDE ENGINE
+   ─ goTo(index, direction) — dir: 1=down, -1=up
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+const slides=Array.from(document.querySelectorAll('.slide'));
+const total=slides.length;
+let cur=0,busy=false;
+
+function goTo(next,dir){
+  next=Math.max(0,Math.min(total-1,next));
+  if(next===cur||busy)return;
+  busy=true;
+  const prev=cur;
+  const dirClass=dir===1?'exit-up':'exit-down';
+  slides[prev].classList.remove('active');
+  slides[prev].classList.add(dirClass);
+  const entering=slides[next];
+  entering.style.transform=dir===1?'translateY(60px) scale(.96)':'translateY(-60px) scale(.96)';
+  entering.style.opacity='0';entering.style.transition='none';entering.style.pointerEvents='none';
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    entering.style.transition='';
+    entering.classList.add('active');
+    entering.style.transform='';
+    entering.style.opacity='';
+    entering.style.pointerEvents='';
+  }));
+  cur=next;
+  document.body.setAttribute('data-s',cur);
+  document.querySelectorAll('.nd').forEach(d=>d.classList.toggle('on',+d.dataset.i===cur));
+  /* ↓ SLIDE LOCK TIME: 520ms — matches exit transition. Don't go below 400ms. */
+  setTimeout(()=>{slides[prev].classList.remove(dirClass);busy=false},520);
+}
+
+/* Wheel — smart: scroll inside card first, then switch slide */
+let wAcc=0,wTimer;
+window.addEventListener('wheel',e=>{
+  e.preventDefault();
+  const ac=slides[cur].querySelector('.card.scroll');
+  if(ac){
+    const atB=ac.scrollTop+ac.clientHeight>=ac.scrollHeight-4;
+    const atT=ac.scrollTop<=4;
+    if((e.deltaY>0&&!atB)||(e.deltaY<0&&!atT)){ac.scrollTop+=e.deltaY;return}
+  }
+  wAcc+=e.deltaY;clearTimeout(wTimer);
+  /* ↓ WHEEL DEBOUNCE: 55ms — lower for snappier, higher for more intentional */
+  wTimer=setTimeout(()=>{if(wAcc>30)goTo(cur+1,1);else if(wAcc<-30)goTo(cur-1,-1);wAcc=0},55);
+},{passive:false});
+
+/* Touch swipe */
+let ty0=0;
+window.addEventListener('touchstart',e=>{ty0=e.touches[0].clientY},{passive:true});
+window.addEventListener('touchend',e=>{
+  const dy=ty0-e.changedTouches[0].clientY;
+  /* ↓ SWIPE THRESHOLD: 45px — lower = more sensitive */
+  if(Math.abs(dy)>45){dy>0?goTo(cur+1,1):goTo(cur-1,-1)}
+},{passive:true});
+
+/* Keyboard */
+window.addEventListener('keydown',e=>{
+  if(['ArrowDown','PageDown'].includes(e.key))goTo(cur+1,1);
+  if(['ArrowUp','PageUp'].includes(e.key))goTo(cur-1,-1);
+});
+
+/* Nav dot clicks */
+document.querySelectorAll('.nd').forEach(d=>d.addEventListener('click',()=>goTo(+d.dataset.i,+d.dataset.i>cur?1:-1)));
+/* Hero buttons */
+document.getElementById('explore-btn').addEventListener('click',()=>goTo(1,1));
+document.getElementById('down-btn').addEventListener('click',()=>goTo(cur+1,1));
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   THEME TOGGLE — pure CSS crossfade, no flash
+   ─ Transition: background-color .7s on body (see CSS token block)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+const tbtn=document.getElementById('tbtn'),tico=document.getElementById('tico');
+const sv=localStorage.getItem('hf-t');
+if(sv==='dark'||(!sv&&matchMedia('(prefers-color-scheme:dark)').matches)){
+  document.body.classList.add('dark');tico.className='fa-solid fa-sun';
+}
+tbtn.addEventListener('click',()=>{
+  if(document.body.classList.contains('punk'))return;
+  const td=!document.body.classList.contains('dark');
+  document.body.classList.toggle('dark',td);
+  tico.className=td?'fa-solid fa-sun':'fa-solid fa-moon';
+  localStorage.setItem('hf-t',td?'dark':'light');
+});
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   SECRET / PUNK MODE
+   ─ Ripple from the secret button, then swap classes.
+   ─ RIPPLE SPEED: change .65s (expand) / .38s (collapse) below
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+const secbtn=document.getElementById('secbtn');
+let prevT='',punkOn=false;
+
+function doRipple(origin,bg,cb){
+  const rpl=document.createElement('div');
+  const rc=origin.getBoundingClientRect();
+  const cx=rc.left+rc.width/2,cy=rc.top+rc.height/2;
+  const d=Math.hypot(Math.max(cx,innerWidth-cx),Math.max(cy,innerHeight-cy))*2;
+  Object.assign(rpl.style,{
+    position:'fixed',borderRadius:'50%',pointerEvents:'none',zIndex:'9997',
+    background:bg,width:d+'px',height:d+'px',
+    left:(cx-d/2)+'px',top:(cy-d/2)+'px',
+    transform:'scale(0)',opacity:'1',transition:'none',
+  });
+  document.body.appendChild(rpl);
+  rpl.getBoundingClientRect(); /* force reflow */
+  rpl.style.transition='transform .65s cubic-bezier(.22,1,.36,1)'; /* ← expand speed */
+  rpl.style.transform='scale(1)';
+  setTimeout(()=>{
+    cb();
+    rpl.style.transition='transform .38s ease,opacity .38s'; /* ← collapse speed */
+    rpl.style.transform='scale(0)';rpl.style.opacity='0';
+    setTimeout(()=>rpl.remove(),420);
+  },340); /* ← delay before activating new theme (ms) */
+}
+
+secbtn.addEventListener('click',()=>{
+  if(!punkOn){
+    prevT=document.body.classList.contains('dark')?'dark':'light';
+    doRipple(secbtn,'#050505',()=>{
+      document.body.classList.remove('dark');
+      document.body.classList.add('punk');
+      secbtn.innerHTML='<i class="fa-solid fa-code" style="font-size:.7rem"></i>';
+      punkOn=true;
+      startParticles();
+    });
+  } else {
+    const bg=prevT==='dark'?'#0b0f1a':'#dfe6f5';
+    doRipple(secbtn,bg,()=>{
+      document.body.classList.remove('punk');
+      if(prevT==='dark')document.body.classList.add('dark');
+      tico.className=prevT==='dark'?'fa-solid fa-sun':'fa-solid fa-moon';
+      secbtn.innerHTML='<i class="fa-solid fa-diamond" style="font-size:.65rem"></i>';
+      punkOn=false;
+      stopParticles();
+    });
+  }
+});
+</script>
+</body>
+</html>
