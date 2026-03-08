@@ -1,5 +1,4 @@
 User-agent: *
 Allow: /
-Disallow: /*.pdf$
 
 Sitemap: https://hasanfirnas.github.io/sitemap.xml
